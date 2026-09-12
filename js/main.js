@@ -6,6 +6,7 @@ import { entryFor, diaryFor } from './diary.js';
 import { View } from './view.js';
 import * as fmt from './fmt.js';
 import { t, setLang, getLang, detectLang, NAMES } from './i18n.js';
+import { push } from './push.js';
 import { setMuted, isMuted, unlockAudio, sfx } from './game/audio.js';
 import { APP_VERSION } from './config.js';
 
@@ -36,6 +37,17 @@ function load() {
   if (life.dead) showDeath();
   else if (!life.hatched(Date.now())) $('egg').hidden = false;
   save();
+  startReminders();
+}
+
+// Reminders survive reloads on their own, but the subscription can be dropped by
+// the browser and the forecast is stale the moment the snail was looked after.
+async function startReminders() {
+  try {
+    remindersOn = await push.active();
+    if (!remindersOn) { await push.resubscribe(life, getLang()); remindersOn = await push.active(); }
+    if (remindersOn) await push.sync(life, getLang());
+  } catch { /* the game does not need any of this */ }
 }
 function snapshot(l) {
   return { size: l.size, distance: l.distance, asleep: l.asleep, day: l.dayIndex(Date.now()) };
@@ -74,6 +86,7 @@ $('btn-lay').addEventListener('click', () => {
   $('egg').hidden = false;
   sfx.crate();
   save();
+  syncReminders(200);
 });
 $('egg').addEventListener('click', () => { $('egg').hidden = true; });
 
@@ -88,6 +101,7 @@ function act(fn, message) {
   if (wasAsleep && !life.asleep) toast(t('act.woke', { name: name() }));
   refreshAll();
   save();
+  syncReminders();
 }
 $('a-mist').addEventListener('click', () => act((now) => { life.mist(now); view.mistBurst(); sfx.splash(); }, () => t('act.misted')));
 $('a-chalk').addEventListener('click', () => act((now) => { life.chalk(now); sfx.crate(); }, () => t('act.chalked')));
@@ -110,19 +124,13 @@ $('feed-close').addEventListener('click', () => { $('feed').hidden = true; });
 function handleEvents() {
   for (const e of life.takeEvents()) {
     switch (e.type) {
-      case 'sealed': toast(t('act.sealed', { name: name() })); notify(t('notify.sealed', { name: name() })); sfx.tickLow(); break;
+      case 'sealed': toast(t('act.sealed', { name: name() })); sfx.tickLow(); syncReminders(); break;
       case 'woke': break;                      // act() already says it
       case 'adult': sfx.win(); break;
       case 'badge': {
         const b = t('badge.' + e.id);
         toast(t('badge.new', { name: b }));
         sfx.crate();
-        if (e.id === 'hatched') notify(t('egg.hatched', { name: name() }));
-        break;
-      }
-      case 'day': {
-        const d = e.day.d;
-        if (d > 0 && d % 365 === 0) notify(t('notify.birthday', { name: name(), years: String(Math.floor(d / 365)) }));
         break;
       }
       case 'died': showDeath(); break;
@@ -267,6 +275,7 @@ function startOver() {
     prev.push({ name: name(), age: life.ageMs(Date.now()), distance: life.distance, size: life.size, days: life.days.length });
     store.set('previous', prev.slice(-10));
   }
+  push.clearSchedule().catch(() => {});
   store.del('life');
   store.del('savedAt');
   life = null;
@@ -297,6 +306,7 @@ addEventListener('pointerdown', unlockAudio, { once: true });
 document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => {
   setLang(b.dataset.lang);
   refreshMute();
+  refreshNotifyButton();
   if (life) refreshAll(); else showStart();
   if (!$('diary').hidden) renderDiary();
   if (!$('badges').hidden) renderBadges();
@@ -310,24 +320,64 @@ addEventListener('keydown', (e) => {
 });
 
 // ---------- reminders ----------
-// Local notifications only: they fire while the page is alive, which covers the
-// tab you left open. Scheduled push needs a server, and that is a later step.
-function refreshNotifyButton() {
+// The snail's future is known in advance, so the server is handed a list of
+// times rather than a copy of the snail. The list is refreshed whenever the app
+// is open and whenever the keeper does something that moves it.
+let remindersOn = false;
+async function refreshNotifyButton() {
   const b = $('m-notify');
-  if (!('Notification' in window)) { b.hidden = true; $('notify-hint').hidden = true; return; }
-  if (Notification.permission === 'granted') { b.textContent = t('menu.notifyOn'); b.disabled = true; }
-  else if (Notification.permission === 'denied') { b.textContent = t('menu.notifyBlocked'); b.disabled = true; }
-  else { b.textContent = t('menu.notify'); b.disabled = false; }
+  if (!push.supported()) {
+    b.hidden = true;
+    $('notify-hint').textContent = t('menu.notifyUnsupported');
+    return;
+  }
+  b.hidden = false;
+  b.disabled = false;
+  if (push.needsInstall()) {
+    b.textContent = t('menu.notify');
+    b.disabled = true;
+    $('notify-hint').textContent = t('menu.notifyInstall');
+    return;
+  }
+  if (push.permission() === 'denied') {
+    b.textContent = t('menu.notifyBlocked');
+    b.disabled = true;
+    $('notify-hint').textContent = t('menu.notifyNote');
+    return;
+  }
+  remindersOn = await push.active();
+  b.textContent = t(remindersOn ? 'menu.notifyOff' : 'menu.notify');
+  $('notify-hint').textContent = t(remindersOn ? 'menu.notifyOn' : 'menu.notifyNote');
 }
 $('m-notify').addEventListener('click', async () => {
-  if (!('Notification' in window)) return;
-  try { await Notification.requestPermission(); } catch { /* ignore */ }
-  refreshNotifyButton();
+  const b = $('m-notify');
+  b.disabled = true;
+  try {
+    if (remindersOn) {
+      await push.disable();
+      toast(t('notify.off'));
+    } else {
+      const r = await push.enable(life, getLang());
+      toast(t(r === 'on' ? 'notify.on' : r === 'blocked' ? 'notify.denied' : r === 'install' ? 'menu.notifyInstall' : 'notify.failed'));
+    }
+  } catch {
+    toast(t('notify.failed'));
+  }
+  await refreshNotifyButton();
 });
-function notify(text) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  if (!document.hidden) return;                       // no need to tell you what you can see
-  try { new Notification(t('app.name'), { body: text, icon: 'icons/icon-192.png', tag: 'snailstory' }); } catch { /* ignore */ }
+
+// The forecast moves every time the snail is watered or fed, so the server's
+// copy is refreshed on a lazy timer and always when the page goes away.
+let syncT = 0;
+function syncReminders(soon = 3000) {
+  if (!remindersOn) return;
+  clearTimeout(syncT);
+  syncT = setTimeout(() => { push.sync(life, getLang()).catch(() => {}); }, soon);
+}
+function syncRemindersNow() {
+  if (!remindersOn) return;
+  clearTimeout(syncT);
+  push.sync(life, getLang(), { keepalive: true }).catch(() => {});
 }
 
 // ---------- the loop ----------
@@ -350,8 +400,11 @@ function frame() {
 let lastRefresh = 0;
 function refreshScreen(now) { lastRefresh = now; refreshAll(); }
 requestAnimationFrame(frame);
-addEventListener('visibilitychange', () => { if (document.hidden) save(); else if (life) { life.advanceTo(Date.now()); handleEvents(); refreshAll(); } });
-addEventListener('pagehide', save);
+addEventListener('visibilitychange', () => {
+  if (document.hidden) { save(); syncRemindersNow(); }
+  else if (life) { life.advanceTo(Date.now()); handleEvents(); refreshAll(); }
+});
+addEventListener('pagehide', () => { save(); syncRemindersNow(); });
 
 // ---------- PWA ----------
 let deferredPrompt = null;

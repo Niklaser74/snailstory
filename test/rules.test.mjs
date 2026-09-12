@@ -6,11 +6,17 @@
 import assert from 'node:assert/strict';
 import { LIFE_DAYS, OLD_DAYS, EGG_MS, TICK_MS, SEAL_AT, WAKE_AT, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
   MOIST_HOURS, FOOD_HOURS, CALCIUM_HOURS, GRIME_HOURS, NIGHT_ACTIVITY, DAY_ACTIVITY, SPEED_MM_S,
-  FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, identity, isNight, rnd } from '../js/life.js';
+  FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, identity, isNight, rnd } from '../js/life.js';
 import { DIARY_KEYS } from '../js/diary.js';
 import { keysOf } from '../js/i18n.js';
 import { placeOnPath, PERIMETER, BOX_W, BOX_H } from '../js/view.js';
 import * as fmt from '../js/fmt.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
 let failed = 0;
 function test(name, fn) {
@@ -119,6 +125,26 @@ test('the lap of the glass is one continuous metre', () => {
   const normals = new Set();
   for (let mm = 0; mm < PERIMETER; mm += 0.5) { const p = placeOnPath(mm); normals.add(`${Math.round(p.nx)},${Math.round(p.ny)}`); }
   for (const n of ['0,-1', '-1,0', '0,1', '1,0']) assert.ok(normals.has(n), 'never on surface ' + n);
+});
+
+test('the reminder kinds the client sends are the ones the table accepts', () => {
+  // The client decides what to schedule and the table refuses anything else.
+  // Drift between the two is silent in production: the insert just drops rows.
+  // (That the sender has a sentence for each is checked in push.test.mjs.)
+  const sql = read('supabase/migrations/20260912190000_snailstory_reminders.sql');
+  const allowed = sql.match(/check \(kind in \(([^)]*)\)\)/)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
+  assert.deepEqual([...REMINDER_KINDS].sort(), [...allowed].sort(), 'the check constraint and the client disagree');
+  for (const k of REMINDER_KINDS) assert.ok(sql.includes(`'${k}'`), 'the filter in set_reminders drops ' + k);
+  assert.ok(sql.includes('snailstory_take_due'), 'the sender must be able to take what is due');
+  assert.ok(sql.includes('delete from public.snailstory_reminders where user_id = auth.uid()'),
+    'set_reminders must replace the schedule, not append to it');
+});
+
+test('no secret was committed with the migration', () => {
+  const sql = read('supabase/migrations/20260912190000_snailstory_reminders.sql');
+  assert.ok(sql.includes('vault.decrypted_secrets'), 'the cron key is read from the vault at run time');
+  assert.ok(!/create_secret\s*\(\s*'[0-9a-f]{16}/.test(sql), 'a vault secret value is in the repository');
+  assert.ok(!/[0-9a-f]{48}/.test(sql), 'something that looks like a key is in the repository');
 });
 
 test('a tick is five minutes, which is what the save assumes', () => {

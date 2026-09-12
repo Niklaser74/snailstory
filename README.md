@@ -25,8 +25,10 @@ Femte spelet i [snigelserien](https://snails.se) från Knackpot. Live på
 | Uppdatera `js/game/` från Snäckmageddon | `npm run sync:game` |
 | Ikoner | `npm run icons` |
 
-Byggstegsfritt: ren HTML, CSS och ES-moduler, inga beroenden, ingen server och
-inget konto. Hela repot deployas till GitHub Pages vid push till `main`.
+Byggstegsfritt: ren HTML, CSS och ES-moduler, inga beroenden. Spelet behöver
+varken server eller konto — det enda undantaget är påminnelser, som är
+frivilliga och beskrivs nedan. Hela repot deployas till GitHub Pages vid push
+till `main`.
 
 ## Struktur
 
@@ -37,9 +39,12 @@ js/diary.js     en dagbokspost per dygn, hämtad ur dygnets sparade siffror
 js/view.js      terrariet på canvas: rummet, fönstret, lådan, snigeln
 js/fmt.js       millimeter, dygn och år som en snigelskötare säger dem
 js/i18n.js      sv/en, inklusive alla dagbokens meningar
+js/push.js      påminnelser: prenumerera, och lämna snigelns schema hos servern
+js/supa.js      minimal Supabase-klient: anonymt konto och RPC, inget bibliotek
 js/main.js      laddning, knappar, paneler, notiser, PWA
 js/game/        KOPIOR från snailmageddon — rör aldrig, kör sync:game
-test/           paths, rules, life, diary, sw
+test/           paths, rules, life, diary, push, sw
+supabase/       migration och edge-funktion för påminnelserna
 ```
 
 ## Så hänger det ihop
@@ -71,12 +76,21 @@ syns direkt vilken tid på dygnet spelet befinner sig i.
 
 ## Notiser
 
-Spelet ber om notisrättighet och skickar lokala notiser vid kläckning, dvala och
-födelsedag — men **bara medan sidan lever**, alltså i en flik som står öppen.
-Notiser till en stängd app kräver web push, alltså VAPID-nycklar, ett
-prenumerationsregister och ett schemalagt serveranrop. Snäckmageddon har redan
-den kedjan i Supabase-projektet `snails`; att låna den hit är nästa steg, inte
-en del av v1.
+Slår du på påminnelser hör spelet av sig när ägget kläcks, när snigeln bommar
+igen skalet, på födelsedagarna och när de tre åren är slut — även när appen är
+stängd.
+
+Det kräver ingen server som vakar över snigeln. Snigelns framtid är
+deterministisk så länge du inte gör något, så appen räknar själv ut när varje
+sak inträffar och lämnar en lista med tider hos Supabase; ett cron-jobb skickar
+det som förfallit. Prognosen för dvalan kör den riktiga simuleringen framåt på
+en slängkopia, så den kan inte glida ifrån verkligheten — och listan ersätts
+varje gång du varit inne, så den är alltid senaste ordet.
+
+Påminnelser är det enda spelet använder nätet till. Väljer du bort dem görs
+inte ett enda anrop. Slår du på dem skapas ett osynligt konto utan namn,
+e-post eller lösenord, och stänger du av dem raderas både prenumerationen och
+kalendern. Detaljerna: `supabase/README.md`.
 
 ## Sökvägar och origin
 
@@ -88,8 +102,6 @@ relativa sökvägar, egen cache-prefix (`snailstory-`), egna `localStorage`-nyck
 
 - Speltesta på riktigt över några dygn och justera takten: fuktens och matens
   livslängd, hur snabbt skalet växer, hur ofta den kryper.
-- Push-notiser via Supabase `snails` (födelsedag, kläckning, "den har bommat
-  igen skalet"), delat med Snäckmageddons `notify-turn`.
 - Ägg och avkomma: två spelares sniglar som blir föräldrar. Sniglar är
   hermafroditer, så vem som helst kan para sig med vem som helst.
 - OG-bild och butikstexter.

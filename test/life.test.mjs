@@ -152,4 +152,71 @@ test('three years replays in well under a second', () => {
   console.log(`     (${(LIFE_DAYS * DAY_MS / TICK_MS).toLocaleString('sv-SE')} ticks in ${ms} ms)`);
 });
 
+// ---------- what the server is told to remind you of ----------
+
+test('the seal forecast is the simulation, not a guess', () => {
+  const l = fresh();
+  l.advanceTo(T0 + 3600000);
+  const at = l.forecastSeal(T0 + 3600000);
+  assert.ok(at, 'a neglected snail has a sealing time');
+  const before = fresh();
+  before.advanceTo(at - TICK_MS - 1);
+  assert.equal(before.asleep, false, 'still out one tick earlier');
+  const after = fresh();
+  after.advanceTo(at);
+  assert.equal(after.asleep, true, 'sealed in exactly when the forecast said');
+});
+
+test('looking after it pushes the sealing time away', () => {
+  const l = fresh();
+  const t = T0 + 3600000;
+  const dry = l.forecastSeal(t);
+  l.mist(t); l.feed(t, 'cucumber');
+  const wet = l.forecastSeal(t);
+  assert.ok(wet > dry, 'water and food buy time');
+  assert.ok(wet - t > 24 * 3600000, 'and at least a day of it');
+});
+
+test('a sealed snail has nothing to forecast, a dead one has nothing at all', () => {
+  const l = fresh();
+  l.advanceTo(T0 + 5 * DAY_MS);
+  assert.equal(l.asleep, true);
+  assert.equal(l.forecastSeal(T0 + 5 * DAY_MS), null);
+  assert.ok(!l.schedule(T0 + 5 * DAY_MS).some((r) => r.kind === 'sealed'), 'no sealing row while sealed');
+  l.advanceTo(T0 + LIFE_DAYS * DAY_MS);
+  assert.deepEqual(l.schedule(T0 + LIFE_DAYS * DAY_MS), [], 'nothing to say after the end');
+});
+
+test('the schedule covers the whole life, in order, never in the past', () => {
+  const l = fresh();
+  const now = T0 + 1000;
+  const s = l.schedule(now);
+  const kinds = s.map((r) => r.kind);
+  for (const k of ['hatch', 'sealed', 'death']) assert.ok(kinds.includes(k), 'missing ' + k);
+  assert.deepEqual(s.filter((r) => r.kind === 'birthday').map((r) => r.years), [1, 2], 'both birthdays; the third is the end');
+  for (const r of s) {
+    assert.ok(r.at > now, r.kind + ' is in the past');
+    assert.ok(r.at <= l.dieAt, r.kind + ' falls after the snail is gone');
+  }
+  for (let i = 1; i < s.length; i++) assert.ok(s[i].at >= s[i - 1].at, 'out of order');
+  assert.ok(s.length <= 10, 'the server takes at most ten');
+});
+
+test('a hatched snail is not told to announce its hatching again', () => {
+  const l = fresh();
+  const now = T0 + 10 * 60000;
+  l.advanceTo(now);
+  assert.ok(!l.schedule(now).some((r) => r.kind === 'hatch'));
+  assert.ok(l.schedule(now).some((r) => r.kind === 'birthday'));
+});
+
+test('forecasting does not disturb the snail it forecasts for', () => {
+  const l = fresh();
+  l.advanceTo(T0 + 6 * 3600000);
+  const before = fields(l);
+  l.forecastSeal(T0 + 6 * 3600000);
+  l.schedule(T0 + 6 * 3600000);
+  assert.deepEqual(fields(l), before, 'the throwaway copy must not write back');
+});
+
 if (failed) { console.log(`${failed} failed`); process.exit(1); }

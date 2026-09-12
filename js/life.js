@@ -42,6 +42,11 @@ export const DAY_ACTIVITY = 0.03;          // snails are nocturnal
 export const NIGHT_FROM = 21;              // garden hours
 export const NIGHT_TO = 6;
 
+// The kinds of reminder the server knows how to send. The same four names
+// appear in supabase/migrations (a check constraint) and in the edge function
+// (the sentences); test/rules.test.mjs checks that they still agree.
+export const REMINDER_KINDS = ['hatch', 'sealed', 'birthday', 'death'];
+
 // ---- what you can hand it ----
 export const FOODS = ['lettuce', 'cucumber', 'carrot', 'dandelion', 'apple', 'oats'];
 // moisture/calcium a food brings along, and how much the snail thinks of it
@@ -261,6 +266,38 @@ export class Life {
     this.days.push(r);
     if (this.days.length > LIFE_DAYS + 2) this.days.shift();
     this.events.push({ type: 'day', day: r });
+  }
+
+  // ---------- telling the server what to remind you of ----------
+  // When the snail will seal itself in if nothing is done. Runs the real
+  // simulation forward on a throwaway copy rather than solving the decay by
+  // hand, so the forecast cannot drift from what actually happens.
+  forecastSeal(now, maxDays = 30) {
+    if (this.dead || this.asleep) return null;
+    const copy = Life.fromJSON({ ...this.toJSON(), days: [] });
+    copy.advanceTo(now);
+    if (copy.asleep || copy.dead) return null;
+    const limit = copy.tick + Math.ceil((maxDays * DAY_MS) / TICK_MS);
+    for (let i = copy.tick + 1; i <= limit; i++) {
+      copy.step(i);
+      if (copy.asleep) return this.born + i * TICK_MS;
+    }
+    return null;   // it is being looked after well enough that this is not news
+  }
+
+  // Everything worth a notification that can be known in advance, as absolute
+  // times. The snail's whole future is deterministic apart from what the keeper
+  // does, so the list can be handed to a server once and left there: hatching,
+  // the birthdays, the end, and — if nothing is done — the day it seals up.
+  schedule(now = Date.now()) {
+    if (this.dead) return [];
+    const out = [];
+    if (!this.hatched(now)) out.push({ kind: 'hatch', at: this.hatchAt });
+    for (const years of [1, 2]) out.push({ kind: 'birthday', at: this.born + years * 365 * DAY_MS, years });
+    out.push({ kind: 'death', at: this.dieAt });
+    const seal = this.forecastSeal(now);
+    if (seal) out.push({ kind: 'sealed', at: seal });
+    return out.filter((r) => r.at > now && r.at <= this.dieAt).sort((a, b) => a.at - b.at);
   }
 
   // ---------- what you can do ----------

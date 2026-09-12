@@ -27,8 +27,11 @@ js/fmt.js       mm/dygn/år formaterade per språk, delat av dagbok och paneler
 js/view.js      terrariet: rummet, fönstrets himmel, lådan, snigeln på sin bana
 js/main.js      laddning, de fem knapparna, paneler, notiser, PWA
 js/i18n.js      sv/en inklusive alla dagbokens meningar (nycklar 'd.*')
+js/push.js      påminnelser: prenumerera och lämna snigelns schema hos servern
+js/supa.js      anonymt Supabase-konto och RPC, inget bibliotek
 js/game/        KOPIOR från snailmageddon — rör aldrig, kör sync:game
 test/           handrullade tester utan ramverk, node:assert
+supabase/       migration och edge-funktion för påminnelserna — se dess README
 ```
 
 ## Konventioner
@@ -52,6 +55,15 @@ test/           handrullade tester utan ramverk, node:assert
 - All UI-text via `t()`, svenska och engelska samtidigt; `test/rules.test.mjs` kräver nyckelparitet.
 - Svenska först i HTML, engelska via `data-i18n`.
 - Takt och balans är konstanter överst i `life.js` — ändra där, inte inline.
+- **Påminnelserna schemaläggs i förväg, servern speglar aldrig snigeln.** Klienten
+  räknar ut när något inträffar (`life.schedule`) och ersätter hela listan hos servern.
+  Ny sorts påminnelse: lägg till i `REMINDER_KINDS`, i migrationens check-villkor och i
+  `supabase/functions/snailstory-notify/texts.js` — testerna kräver att de tre är överens.
+- **Notistexter hör hemma i `texts.js`, inte i `js/i18n.js`.** En notis skrivs av servern.
+- **Sessionsnyckeln `snackmageddon.session` är medvetet oprefixad** — samma origin,
+  samma projekt, samma konto som resten av serien. Enda undantaget från prefixregeln.
+- **Allt i `push.js` och `supa.js` är best effort.** Spelet ska fungera utan nät, utan
+  konto och utan notisrättighet; inget därifrån får kasta in i spelet.
 - `docs-vault/` (Obsidian) och `.claude/` committas aldrig.
 
 ## Rör inte

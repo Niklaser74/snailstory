@@ -1,7 +1,7 @@
 // Service worker: cache-first app shell so the snail can be looked after
 // offline. Cache names are prefixed per game: everything on snails.se shares
 // one origin.
-const VERSION = 'snailstory-v1';
+const VERSION = 'snailstory-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -14,6 +14,8 @@ const ASSETS = [
   './js/fmt.js',
   './js/i18n.js',
   './js/config.js',
+  './js/supa.js',
+  './js/push.js',
   './js/game/snails.js',
   './js/game/cosmetics.js',
   './js/game/themes.js',
@@ -51,12 +53,31 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
-// A notification the page asked for while it was open still belongs to the app:
-// tapping it should bring the terrarium forward rather than open a second tab.
+// ---------- Web Push ----------
+// The reminders the game scheduled with the server: hatching, the birthdays,
+// the day it sealed itself in, and the end. One tag per kind, so a birthday
+// never buries a 'it has sealed up'.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Snail Story', {
+    body: d.body || '',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: d.tag || 'snailstory',
+    renotify: true,
+    data: { url: d.url || './' },
+  }));
+});
+
+// Tapping it should bring the terrarium forward, not open a second tab.
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  e.waitUntil(clients.matchAll({ type: 'window' }).then((list) => {
-    for (const c of list) if (c.url.includes('/snailstory/') && 'focus' in c) return c.focus();
-    return clients.openWindow('./');
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) {
+      if (c.url.includes('/snailstory/') && 'focus' in c) { if ('navigate' in c) c.navigate(url); return c.focus(); }
+    }
+    return clients.openWindow(url);
   }));
 });
