@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Snail Story: a snail in a glass box on a table, at night -->
+  <defs>
+    <clipPath id="r"><rect x="0" y="0" width="512" height="512" rx="96"/></clipPath>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#49907a"/><stop offset="1" stop-color="#2a3a33"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.26"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="soil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6e4324"/><stop offset="1" stop-color="#40260f"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="512" height="512" fill="url(#wall)"/>
+    <!-- the moon behind -->
+    <circle cx="404" cy="104" r="38" fill="#fff6d2" opacity="0.92"/>
+    <circle cx="120" cy="82" r="4" fill="#fff" opacity="0.7"/>
+    <circle cx="186" cy="126" r="3" fill="#fff" opacity="0.6"/>
+    <circle cx="300" cy="70" r="3.5" fill="#fff" opacity="0.6"/>
+    <!-- the table -->
+    <rect x="0" y="424" width="512" height="88" fill="#7a5530"/>
+    <rect x="0" y="424" width="512" height="10" fill="rgba(0,0,0,0.18)"/>
+    <!-- the box: lid, interior, soil -->
+    <rect x="54" y="150" width="404" height="26" rx="8" fill="#6b533a"/>
+    <g opacity="0.28" stroke="#fff" stroke-width="3">
+      <path d="M92 152 V174 M132 152 V174 M172 152 V174 M212 152 V174 M252 152 V174 M292 152 V174 M332 152 V174 M372 152 V174 M412 152 V174"/>
+    </g>
+    <rect x="72" y="176" width="368" height="248" fill="rgba(190,215,205,0.20)"/>
+    <rect x="72" y="334" width="368" height="90" fill="url(#soil)"/>
+    <!-- moss and a lettuce leaf -->
+    <g fill="#4c9a3f">
+      <ellipse cx="120" cy="338" rx="34" ry="11"/><ellipse cx="208" cy="340" rx="28" ry="9"/><ellipse cx="392" cy="338" rx="30" ry="10"/>
+    </g>
+    <g transform="rotate(-10 352 322)">
+      <ellipse cx="352" cy="318" rx="44" ry="22" fill="#6cc25a" stroke="#3f8f3b" stroke-width="5"/>
+      <path d="M312 318 Q352 310 392 314" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="5"/>
+    </g>
+    <!-- slime trail along the soil -->
+    <path d="M110 330 H226" stroke="rgba(190,255,150,0.55)" stroke-width="26" stroke-linecap="round"/>
+    <!-- the snail, foot on the soil, facing right -->
+    <g transform="translate(246 330) scale(6.6)" stroke="#4a2e1c" stroke-width="1.6" stroke-linejoin="round">
+      <path d="M-22 0 Q-24 -6 -14 -8 L10 -8 Q24 -12 23 -4 Q24 0 18 0 Z" fill="#e0a878"/>
+      <path d="M4 -6 Q8 -20 18 -20 Q26 -20 24 -12 Q23 -6 16 -6 Z" fill="#e0a878"/>
+      <circle cx="-6" cy="-15" r="13.5" fill="#c8913f"/>
+      <path d="M-4.5 -15.5 a2 2 0 1 1 4 1.2 a5 5 0 1 1 -8.5 -3 a8.5 8.5 0 1 1 5 11" fill="none" stroke="#fff3d6" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M13 -19 Q15 -26 14 -31 M20 -19 Q24 -26 23 -34" fill="none" stroke="#e0a878" stroke-width="3.2" stroke-linecap="round"/>
+      <circle cx="14" cy="-32" r="4.6" fill="#fff" stroke-width="1"/><circle cx="23" cy="-35" r="4.6" fill="#fff" stroke-width="1"/>
+      <circle cx="15.5" cy="-32" r="2.2" fill="#1b1b1b" stroke="none"/><circle cx="24.5" cy="-35" r="2.2" fill="#1b1b1b" stroke="none"/>
+    </g>
+    <!-- the glass in front, with condensation -->
+    <rect x="72" y="176" width="368" height="248" fill="url(#glass)"/>
+    <g fill="rgba(255,255,255,0.22)">
+      <circle cx="110" cy="214" r="6"/><circle cx="148" cy="248" r="4"/><circle cx="96" cy="278" r="5"/>
+      <circle cx="404" cy="220" r="5"/><circle cx="372" cy="262" r="4"/>
+    </g>
+    <rect x="72" y="176" width="368" height="248" fill="none" stroke="rgba(255,255,255,0.72)" stroke-width="9"/>
+  </g>
+</svg>

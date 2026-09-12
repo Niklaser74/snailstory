@@ -1,0 +1,155 @@
+// The promises Snail Story makes are all about time, and none of them can be
+// checked by playing: three years is three years. So they are checked here, by
+// living whole lives in a few milliseconds.
+//   node test/life.test.mjs
+import assert from 'node:assert/strict';
+import { Life, DAY_MS, TICK_MS, LIFE_DAYS, SIZE_HATCH, SIZE_ADULT, SIZE_MAX, WAKE_AT, SEAL_AT, quality } from '../js/life.js';
+
+const T0 = Date.UTC(2026, 0, 5, 8, 0, 0);     // a Monday morning, fixed
+const TZ = -60;                                // Sweden in winter, frozen for the test
+const fresh = (extra = {}) => new Life({ seed: 12345, name: 'Gösta', born: T0, tz: TZ, ...extra });
+
+let failed = 0;
+function test(name, fn) {
+  try { fn(); console.log(`ok   ${name}`); } catch (e) { failed++; console.log(`FAIL ${name}\n     ${e.message}`); }
+}
+const fields = (l) => ({
+  tick: l.tick, size: +l.size.toFixed(9), distance: +l.distance.toFixed(9),
+  moisture: +l.moisture.toFixed(9), food: +l.food.toFixed(9), calcium: +l.calcium.toFixed(9),
+  grime: +l.grime.toFixed(9), asleep: l.asleep, sealedTicks: l.sealedTicks, days: l.days.length,
+  adult: l.adult, dead: l.dead,
+});
+
+test('the same snail is the same snail however the app got there', () => {
+  const end = T0 + 90 * DAY_MS;
+  const oneJump = fresh().advanceTo(end);
+  const manySteps = fresh();
+  // a jagged walk of odd intervals, the way a phone really gets opened
+  for (let t = T0; t < end; t += 37 * 60 * 1000 + 11111) manySteps.advanceTo(Math.min(t, end));
+  manySteps.advanceTo(end);
+  assert.deepEqual(fields(manySteps), fields(oneJump));
+});
+
+test('a forgotten snail seals up and is still alive three years later', () => {
+  const l = fresh();
+  l.advanceTo(T0 + 3 * DAY_MS);
+  assert.equal(l.asleep, true, 'sealed within three days of neglect');
+  l.advanceTo(T0 + (LIFE_DAYS - 1) * DAY_MS);
+  assert.equal(l.dead, false, 'still alive the day before its third birthday');
+  assert.equal(l.asleep, true);
+  assert.ok(l.size > SIZE_HATCH, 'it grew a little before sealing');
+  assert.ok(l.size < 10, 'but nothing like a cared-for snail');
+  l.advanceTo(T0 + LIFE_DAYS * DAY_MS);
+  assert.equal(l.dead, true, 'old age is the only thing that ends it');
+});
+
+test('sealed in, nothing moves: not the needs, not the shell, not the odometer', () => {
+  const l = fresh();
+  l.advanceTo(T0 + 5 * DAY_MS);
+  assert.equal(l.asleep, true);
+  const before = fields(l);
+  l.advanceTo(T0 + 105 * DAY_MS);
+  assert.equal(+l.moisture.toFixed(9), before.moisture, 'moisture frozen');
+  assert.equal(+l.food.toFixed(9), before.food, 'food frozen');
+  assert.equal(+l.grime.toFixed(9), before.grime, 'the box stops getting dirty');
+  assert.equal(+l.size.toFixed(9), before.size, 'no growth while sealed');
+  assert.equal(+l.distance.toFixed(9), before.distance, 'no crawling while sealed');
+  assert.ok(l.sealedTicks > before.sealedTicks, 'but the sleep is counted');
+});
+
+test('water and food wake it, one alone does not', () => {
+  const l = fresh();
+  l.advanceTo(T0 + 5 * DAY_MS);
+  assert.equal(l.asleep, true);
+  const t = T0 + 5 * DAY_MS + 1000;
+  l.mist(t);
+  assert.equal(l.asleep, true, 'a dry snail with no food stays in');
+  assert.ok(l.moisture >= WAKE_AT);
+  l.feed(t + 1000, 'lettuce');
+  assert.equal(l.asleep, false, 'both together bring it out');
+});
+
+test('a well kept snail grows up, fills its shell and dies of old age', () => {
+  const l = fresh();
+  const end = T0 + LIFE_DAYS * DAY_MS;
+  // looked after twice a day for three years, which nobody will do
+  for (let t = T0 + 6 * 3600000; t < end; t += 12 * 3600000) {
+    l.mist(t); l.feed(t, 'dandelion'); l.chalk(t); l.clean(t);
+  }
+  l.advanceTo(end);
+  assert.equal(l.asleep, false, 'never had to seal up');
+  assert.equal(l.adult, true);
+  assert.ok(l.size >= 38, `shell reached only ${l.size.toFixed(1)} mm`);
+  assert.ok(l.size < SIZE_MAX, 'and never passes the limit');
+  assert.ok(l.distance > 1000000, `crawled only ${(l.distance / 1000).toFixed(0)} m`);
+  assert.equal(l.dead, true);
+  for (const id of ['hatched', 'grown', 'threeYears', 'kilometre', 'hundredMeals']) {
+    assert.ok(l.badges.includes(id), 'missing badge ' + id);
+  }
+});
+
+test('the shell lip comes in before the first summer under decent care', () => {
+  const l = fresh();
+  for (let t = T0 + 6 * 3600000; t < T0 + 200 * DAY_MS; t += 18 * 3600000) { l.mist(t); l.feed(t, 'carrot'); l.chalk(t); }
+  assert.equal(l.adult, true);
+  const grown = l.days.find((d) => d.size >= SIZE_ADULT);
+  assert.ok(grown && grown.d < 200, 'grown up within two hundred days');
+});
+
+test('nothing ever goes backwards', () => {
+  const l = fresh();
+  let size = 0, dist = 0, age = -1, day = -1;
+  for (let t = T0; t < T0 + 400 * DAY_MS; t += 7 * 3600000) {
+    if (t % (3 * DAY_MS) < 7 * 3600000) { l.mist(t); l.feed(t, 'apple'); }
+    l.advanceTo(t);
+    assert.ok(l.size >= size, 'shell shrank');
+    assert.ok(l.distance >= dist, 'odometer ran backwards');
+    assert.ok(l.ageMs(t) > age, 'age stood still');
+    assert.ok(l.dayIndex(t) >= day);
+    size = l.size; dist = l.distance; age = l.ageMs(t); day = l.dayIndex(t);
+  }
+  assert.ok(l.whorls(T0 + 400 * DAY_MS) >= 1 && l.whorls(T0 + 400 * DAY_MS) <= 5);
+});
+
+test('one diary record per day lived, and none for the future', () => {
+  const l = fresh();
+  l.advanceTo(T0 + 30 * DAY_MS + TICK_MS);
+  assert.equal(l.days.length, 30, `expected 30 closed days, got ${l.days.length}`);
+  assert.deepEqual(l.days.map((d) => d.d), [...Array(30).keys()]);
+  assert.equal(l.today.d, 30);
+});
+
+test('saving and loading gives back the same snail, and it keeps living the same', () => {
+  const a = fresh();
+  for (let t = T0; t < T0 + 20 * DAY_MS; t += 9 * 3600000) { l2(a, t); }
+  const b = Life.fromJSON(JSON.parse(JSON.stringify(a.toJSON())));
+  assert.deepEqual(fields(b), fields(a));
+  assert.equal(b.color, a.color, 'the shell colour comes from the seed, not the save');
+  const end = T0 + 40 * DAY_MS;
+  a.advanceTo(end); b.advanceTo(end);
+  assert.deepEqual(fields(b), fields(a));
+});
+function l2(l, t) { l.mist(t); l.feed(t, 'oats'); }
+
+test('growth quality reads the four needs in the right direction', () => {
+  const base = { moisture: 1, food: 1, calcium: 1, grime: 0 };
+  assert.ok(quality(base) > 0.95);
+  assert.ok(quality({ ...base, moisture: 0.1 }) < quality(base));
+  assert.ok(quality({ ...base, food: 0.1 }) < quality(base));
+  assert.ok(quality({ ...base, calcium: 0 }) < quality(base));
+  assert.ok(quality({ ...base, grime: 1 }) < quality(base));
+  assert.ok(quality({ moisture: 0, food: 0, calcium: 0, grime: 1 }) >= 0);
+  assert.ok(SEAL_AT < WAKE_AT, 'it needs more to come out than it took to go in');
+});
+
+test('three years replays in well under a second', () => {
+  const t = Date.now();
+  const l = fresh();
+  l.advanceTo(T0 + LIFE_DAYS * DAY_MS);
+  const ms = Date.now() - t;
+  assert.ok(l.dead);
+  assert.ok(ms < 1500, `took ${ms} ms`);
+  console.log(`     (${(LIFE_DAYS * DAY_MS / TICK_MS).toLocaleString('sv-SE')} ticks in ${ms} ms)`);
+});
+
+if (failed) { console.log(`${failed} failed`); process.exit(1); }

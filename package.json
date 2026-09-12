@@ -1,0 +1,14 @@
+{
+  "name": "snailstory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Snail Story – sköt om en snigel i verklig tid. Den gör ingenting, den lever i tre år, och den kan inte dö av vanskötsel. PWA utan byggsteg.",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node test/paths.test.mjs && node test/rules.test.mjs && node test/life.test.mjs && node test/diary.test.mjs && node test/sw.test.mjs",
+    "sync:game": "node scripts/sync-game.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "license": "UNLICENSED"
+}

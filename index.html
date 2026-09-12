@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#3f7d63">
+<meta name="description" content="Snail Story – sköt om en snigel i verklig tid. Den gör nästan ingenting, lever i tre år och kan inte dö av vanskötsel. Snail Story: look after a snail in real time.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Snail Story">
+<title>Snail Story</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="snails.se">
+<meta property="og:title" content="Snail Story – three years, in real time">
+<meta property="og:description" content="Sköt om en snigel i verklig tid. Den gör nästan ingenting. / Look after a snail in real time. It does almost nothing.">
+<meta property="og:image" content="https://snails.se/snailstory/icons/icon-512.png">
+<meta property="og:url" content="https://snails.se/snailstory/">
+<link rel="canonical" href="https://snails.se/snailstory/">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- the top bar -->
+<header id="bar" hidden>
+  <canvas id="portrait" width="56" height="42" aria-hidden="true"></canvas>
+  <div class="who">
+    <strong id="bar-name">&nbsp;</strong>
+    <span id="bar-stage" class="chip"></span>
+  </div>
+  <div class="bar-btns">
+    <button id="btn-mute" class="icon-btn" aria-label="Ljud av">🔊</button>
+    <button id="btn-menu" class="icon-btn" data-i18n-aria="aria.menu" aria-label="Meny">☰</button>
+  </div>
+</header>
+
+<main id="stage" hidden>
+  <canvas id="box" data-i18n-aria="aria.box" aria-label="Terrariet"></canvas>
+  <p id="mood" class="mood"></p>
+
+  <div id="facts" class="facts">
+    <div class="fact"><span class="label" data-i18n="hud.age">Ålder</span><span id="f-age" class="value">—</span></div>
+    <div class="fact"><span class="label" data-i18n="hud.size">Skal</span><span id="f-size" class="value">—</span></div>
+    <div class="fact"><span class="label" data-i18n="hud.distance">Krypt</span><span id="f-dist" class="value">—</span></div>
+  </div>
+
+  <div id="needs" class="needs">
+    <div class="need" data-need="moisture"><span class="label" data-i18n="need.moisture">Fukt</span><span class="track"><i></i></span></div>
+    <div class="need" data-need="food"><span class="label" data-i18n="need.food">Mat</span><span class="track"><i></i></span></div>
+    <div class="need" data-need="calcium"><span class="label" data-i18n="need.calcium">Kalk</span><span class="track"><i></i></span></div>
+    <div class="need" data-need="clean"><span class="label" data-i18n="need.clean">Renhet</span><span class="track"><i></i></span></div>
+  </div>
+
+  <div class="acts">
+    <button id="a-mist" class="act"><span class="ico">💧</span><span data-i18n="act.mist">Dimma</span></button>
+    <button id="a-feed" class="act"><span class="ico">🥬</span><span data-i18n="act.feed">Mata</span></button>
+    <button id="a-chalk" class="act"><span class="ico">🦴</span><span data-i18n="act.chalk">Kalk</span></button>
+    <button id="a-clean" class="act"><span class="ico">🧹</span><span data-i18n="act.clean">Städa</span></button>
+    <button id="a-pet" class="act"><span class="ico">✋</span><span data-i18n="act.pet">Klappa</span></button>
+  </div>
+
+  <div class="links">
+    <button id="o-diary" class="btn secondary" data-i18n="menu.diary">Dagbok</button>
+    <button id="o-badges" class="btn secondary" data-i18n="menu.badges">Märken</button>
+    <button id="o-stats" class="btn secondary" data-i18n="menu.stats">Om snigeln</button>
+  </div>
+
+  <p id="toast" class="toast" hidden></p>
+</main>
+
+<!-- first run: name the egg -->
+<div id="start" class="overlay" hidden>
+  <div class="panel">
+    <div class="lang" role="group" aria-label="Språk">
+      <button data-lang="sv" aria-pressed="true">SV</button>
+      <button data-lang="en" aria-pressed="false">EN</button>
+    </div>
+    <h1 data-i18n="start.title">Ett ägg</h1>
+    <p data-i18n="start.text"></p>
+    <label class="field">
+      <span data-i18n="start.name">Namn</span>
+      <input id="name-input" type="text" maxlength="16" autocomplete="off" data-i18n-ph="start.placeholder" placeholder="Namnlös">
+    </label>
+    <div class="actions">
+      <button id="btn-dice" class="btn secondary" data-i18n="start.dice">Slumpa namn</button>
+      <button id="btn-lay" class="btn primary" data-i18n="start.go">Lägg ägget i jorden</button>
+    </div>
+    <div id="prev-wrap" hidden>
+      <h3 data-i18n="prev.title">Tidigare sniglar</h3>
+      <ul id="prev-list" class="plain"></ul>
+    </div>
+    <footer>
+      <span data-i18n="app.by"></span>
+      · <a href="https://snails.se/" data-i18n="app.hub">Fler snigelspel på snails.se</a>
+    </footer>
+  </div>
+</div>
+
+<!-- the egg is in the soil -->
+<div id="egg" class="overlay" hidden>
+  <div class="panel small">
+    <h2 data-i18n="egg.title">Ägget</h2>
+    <p id="egg-wait" class="score"></p>
+    <p class="why" data-i18n="egg.note"></p>
+  </div>
+</div>
+
+<!-- feeding -->
+<div id="feed" class="overlay" hidden>
+  <div class="panel">
+    <h2 data-i18n="feed.title">Vad får den?</h2>
+    <div id="feed-list" class="foods"></div>
+    <div class="actions"><button id="feed-close" class="btn secondary" data-i18n="feed.close">Stäng</button></div>
+  </div>
+</div>
+
+<!-- the diary -->
+<div id="diary" class="overlay" hidden>
+  <div class="panel tall">
+    <h2 data-i18n="diary.title">Dagbok</h2>
+    <div id="diary-list" class="diary"></div>
+    <div class="actions">
+      <button id="diary-copy" class="btn secondary" data-i18n="diary.copy">Kopiera dagboken</button>
+      <button id="diary-close" class="btn primary" data-i18n="diary.close">Stäng</button>
+    </div>
+  </div>
+</div>
+
+<!-- badges -->
+<div id="badges" class="overlay" hidden>
+  <div class="panel tall">
+    <h2 data-i18n="badges.title">Märken</h2>
+    <p id="badges-count" class="why"></p>
+    <ul id="badges-list" class="badges"></ul>
+    <div class="actions"><button id="badges-close" class="btn primary" data-i18n="badges.close">Stäng</button></div>
+  </div>
+</div>
+
+<!-- the numbers -->
+<div id="stats" class="overlay" hidden>
+  <div class="panel">
+    <h2 id="stats-title">Om snigeln</h2>
+    <dl id="stats-list" class="stats"></dl>
+    <div class="actions"><button id="stats-close" class="btn primary" data-i18n="stats.close">Stäng</button></div>
+  </div>
+</div>
+
+<!-- while you were away -->
+<div id="away" class="overlay" hidden>
+  <div class="panel small">
+    <h2 data-i18n="away.title">Medan du var borta</h2>
+    <div id="away-body"></div>
+    <div class="actions"><button id="away-close" class="btn primary" data-i18n="away.close">Titta till den</button></div>
+  </div>
+</div>
+
+<!-- the end -->
+<div id="death" class="overlay" hidden>
+  <div class="panel small">
+    <h2 data-i18n="death.title">Tre år</h2>
+    <p id="death-body"></p>
+    <p class="why" data-i18n="death.keep"></p>
+    <div class="actions">
+      <button id="death-new" class="btn primary" data-i18n="death.new">Lägg ett nytt ägg</button>
+      <button id="death-close" class="btn secondary" data-i18n="death.close">Sitt kvar en stund</button>
+    </div>
+  </div>
+</div>
+
+<!-- menu -->
+<div id="menu" class="overlay" hidden>
+  <div class="panel">
+    <div class="lang" role="group" aria-label="Språk">
+      <button data-lang="sv" aria-pressed="true">SV</button>
+      <button data-lang="en" aria-pressed="false">EN</button>
+    </div>
+    <h2 data-i18n="menu.title">Snail Story</h2>
+    <p class="tagline" data-i18n="app.tagline"></p>
+    <div class="actions">
+      <button id="m-close" class="btn primary" data-i18n="menu.look">Titta till snigeln</button>
+      <button id="m-help" class="btn secondary" data-i18n="menu.help">Så funkar det</button>
+      <button id="m-notify" class="btn secondary" data-i18n="menu.notify">Påminn mig</button>
+      <button id="m-install" class="btn secondary" hidden data-i18n="menu.install">Installera app</button>
+      <button id="m-reset" class="btn secondary danger" data-i18n="menu.reset">Börja om med nytt ägg</button>
+    </div>
+    <p id="notify-hint" class="hint" data-i18n="menu.notifyNote"></p>
+    <p id="offline-hint" class="hint"></p>
+    <footer>
+      <span data-i18n="app.by"></span>
+      · <a href="https://snails.se/" data-i18n="app.hub">Fler snigelspel på snails.se</a>
+      · <span id="menu-version"></span>
+    </footer>
+  </div>
+</div>
+
+<!-- help -->
+<div id="help" class="overlay" hidden>
+  <div class="panel tall">
+    <h2 data-i18n="help.title">Så funkar det</h2>
+    <p data-i18n="help.1"></p>
+    <p data-i18n="help.2"></p>
+    <p data-i18n="help.3"></p>
+    <p data-i18n="help.4"></p>
+    <p data-i18n="help.5"></p>
+    <div class="actions"><button id="help-close" class="btn primary" data-i18n="help.close">Stäng</button></div>
+  </div>
+</div>
+
+<!-- start over -->
+<div id="reset" class="overlay" hidden>
+  <div class="panel small">
+    <h2 data-i18n="reset.title">Börja om?</h2>
+    <p id="reset-body"></p>
+    <div class="actions">
+      <button id="reset-no" class="btn primary" data-i18n="reset.no">Nej, behåll snigeln</button>
+      <button id="reset-yes" class="btn secondary danger" data-i18n="reset.yes">Lägg nytt ägg</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
