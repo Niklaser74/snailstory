@@ -119,5 +119,8 @@ går den satsen förlorad. För snigelpåminnelser är *högst en gång* rätt v
   utan importer så att både Deno och `test/push.test.mjs` läser samma källa.
 - **Radering.** Stänger spelaren av påminnelser raderas både prenumerationen och
   schemat. Lägger hen ett nytt ägg töms schemat och fylls på nytt.
+- **Cron-loggen städar sig själv.** `net._http_response` har `pg_net.ttl` 6 timmar,
+  så de 288 raderna per dygn försvinner av sig själva. Det är också där man ser om
+  jobbet går: `select id, status_code, content from net._http_response order by id desc limit 5`.
 - **Ingen städning behövs** för gamla rader: `take_due` konsumerar dem, och en
   spelare som slutar har som mest fyra rader liggande fram till sin snigels slut.
