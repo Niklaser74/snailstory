@@ -75,6 +75,11 @@ fjärdedels sekund och kommer tillbaka ut under fem, och snigeln sitter still
 lite längre än så. Indragningen är en parameter i seriens `drawSnail`, inte
 något Snail Story målar över huvudet.
 
+**Ur dvalan kommer den långsamt.** Bryter den membranet är stjälkarna redan
+inne, och de vecklas ut jämnt under åtta sekunder utan paus först — till
+skillnad från klappet, som är en ryck. Blir den klappad mitt i utvecklingen
+åker de in helt igen.
+
 **Sniglar är nattdjur.** Mellan nio på kvällen och sex på morgonen rör den sig;
 på dagen sitter den still. Fönstret bakom lådan visar den riktiga himlen, så det
 syns direkt vilken tid på dygnet spelet befinner sig i.

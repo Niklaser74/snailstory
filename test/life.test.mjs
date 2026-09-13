@@ -152,6 +152,39 @@ test('three years replays in well under a second', () => {
   console.log(`     (${(LIFE_DAYS * DAY_MS / TICK_MS).toLocaleString('sv-SE')} ticks in ${ms} ms)`);
 });
 
+test('a snail that wakes up unfolds its stalks, and a poke folds them again', () => {
+  const l = fresh();
+  const t = T0 + 5 * DAY_MS;
+  l.advanceTo(t);
+  assert.equal(l.asleep, true, 'a forgotten snail is sealed in');
+  assert.equal(l.stalkRetraction(t), 1, 'nothing is out while it is sealed');
+
+  l.mist(t); l.feed(t, 'cucumber');
+  assert.equal(l.asleep, false, 'water and food wake it');
+  assert.equal(l.wokeAt, t, 'and the moment is remembered');
+  assert.equal(l.stalkRetraction(t), 1, 'the stalks start where the membrane left them');
+  const mid = l.stalkRetraction(t + 4000);
+  assert.ok(mid > 0.2 && mid < 0.8, `half way out, got ${mid}`);
+  assert.equal(l.stalkRetraction(t + 9000), 0, 'fully out after the stretch');
+  assert.equal(l.shy(t + 4000), true, 'it does not crawl off mid-stretch');
+  assert.equal(l.shy(t + 9000), false);
+
+  // touched while still unfolding: all the way back in, not somewhere between
+  l.pet(t + 4000);
+  assert.equal(l.stalkRetraction(t + 4250), 1, 'a poke wins over a stretch');
+  assert.equal(l.stalkRetraction(t + 20000), 0, 'and it recovers from that too');
+});
+
+test('waking is remembered across a save, so the stretch is not restarted', () => {
+  const l = fresh();
+  const t = T0 + 5 * DAY_MS;
+  l.advanceTo(t);
+  l.mist(t); l.feed(t, 'cucumber');
+  const back = Life.fromJSON(JSON.parse(JSON.stringify(l.toJSON())));
+  assert.equal(back.wokeAt, l.wokeAt);
+  assert.equal(back.stalkRetraction(t + 4000), l.stalkRetraction(t + 4000));
+});
+
 // ---------- what the server is told to remind you of ----------
 
 test('the seal forecast is the simulation, not a guess', () => {

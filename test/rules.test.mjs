@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { LIFE_DAYS, OLD_DAYS, EGG_MS, TICK_MS, SEAL_AT, WAKE_AT, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
   MOIST_HOURS, FOOD_HOURS, CALCIUM_HOURS, GRIME_HOURS, NIGHT_ACTIVITY, DAY_ACTIVITY, SPEED_MM_S,
-  FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, PET_SHY_MS, retraction, identity, isNight, rnd } from '../js/life.js';
+  FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, PET_SHY_MS, retraction, WAKE_STRETCH_MS, stretching, identity, isNight, rnd } from '../js/life.js';
 import { DIARY_KEYS } from '../js/diary.js';
 import { keysOf } from '../js/i18n.js';
 import { placeOnPath, PERIMETER, BOX_W, BOX_H } from '../js/view.js';
@@ -169,6 +169,24 @@ test('a touched snail pulls its eyes in at once and lets them out slowly', () =>
   // the eyes are out again well before the snail starts moving
   assert.equal(retraction(PET_SHY_MS), 0, 'eyes out before it dares move');
   assert.ok(PET_SHY_MS > 8250, 'and it stays put a while after that');
+});
+
+test('waking out of dormancy unfolds slowly, with no pause first', () => {
+  assert.equal(stretching(0), 1, 'it breaks the membrane with the stalks already in');
+  assert.equal(stretching(WAKE_STRETCH_MS), 0, 'and is fully out at the end');
+  assert.equal(stretching(WAKE_STRETCH_MS * 2), 0);
+  let prev = 1;
+  for (let ms = 0; ms <= WAKE_STRETCH_MS; ms += 100) {
+    const v = stretching(ms);
+    assert.ok(v >= 0 && v <= 1, `stretching(${ms}) = ${v}`);
+    assert.ok(v <= prev, 'the stalks must never go back in on their own');
+    prev = v;
+  }
+  // no hold at the start: unlike a flinch, this is already on its way out
+  assert.ok(stretching(500) < 1, 'a stretch has no held phase');
+  // and it takes longer than recovering from a poke
+  assert.ok(WAKE_STRETCH_MS > PET_SHY_MS / 2, 'waking up is not a flinch');
+  for (const v of [-1, NaN, Infinity]) assert.equal(stretching(v), 0);
 });
 
 test('a tick is five minutes, which is what the save assumes', () => {

@@ -60,6 +60,17 @@ export function retraction(since) {
   return 1 - (since - PET_IN_MS - PET_HELD_MS) / PET_OUT_MS;
 }
 
+// ---- coming out of dormancy ----
+// A snail that has been sealed in for weeks does not simply appear. The stalks
+// are already in when it breaks the membrane, and they come out slowly and
+// evenly — no hold first, because it has been holding all along. Slower than
+// after a poke: that is a flinch, this is waking up.
+export const WAKE_STRETCH_MS = 8000;
+export function stretching(since) {
+  if (!(since >= 0) || since >= WAKE_STRETCH_MS) return 0;
+  return 1 - since / WAKE_STRETCH_MS;
+}
+
 // The kinds of reminder the server knows how to send. The same four names
 // appear in supabase/migrations (a check constraint) and in the edge function
 // (the sentences); test/rules.test.mjs checks that they still agree.
@@ -151,6 +162,7 @@ export class Life {
     this.chalks = 0;
     this.pets = 0;
     this.petAt = 0;
+    this.wokeAt = 0;
     this.adult = false;
     this.dead = false;
     this.days = [];                 // one closed-day record per day lived
@@ -324,7 +336,7 @@ export class Life {
     if (this.dead) return this;
     this.moisture = 1;
     this.mists++;
-    this.wakeIfPossible();
+    this.wakeIfPossible(now);
     return this;
   }
   feed(now, type = 'lettuce') {
@@ -337,7 +349,7 @@ export class Life {
     this.meals[type] = (this.meals[type] || 0) + 1;
     this.today.meals++;
     this.today.ate = type;
-    this.wakeIfPossible();
+    this.wakeIfPossible(now);
     return this;
   }
   chalk(now) {
@@ -354,7 +366,7 @@ export class Life {
     this.cleans++;
     // a wash leaves the glass damp
     this.moisture = clamp01(this.moisture + 0.1);
-    this.wakeIfPossible();
+    this.wakeIfPossible(now);
     return this;
   }
   pet(now) {
@@ -365,9 +377,10 @@ export class Life {
     this.today.pets++;
     return this;
   }
-  wakeIfPossible() {
+  wakeIfPossible(now) {
     if (this.asleep && this.moisture >= WAKE_AT && this.food >= WAKE_AT) {
       this.asleep = false;
+      this.wokeAt = now ?? Date.now();   // the stalks come back out from here
       this.events.push({ type: 'woke' });
     }
   }
@@ -385,6 +398,19 @@ export class Life {
     if (isNight(now, this.tz)) return 'content';
     return 'resting';
   }
+  // How far the eye stalks are pulled in right now, 0 (out) to 1 (in), for
+  // whatever reason. A poke beats a slow morning stretch: being touched while
+  // still unfolding should make it flinch all the way back in.
+  stalkRetraction(now) {
+    if (this.dead || this.asleep) return 1;
+    return Math.max(retraction(now - this.petAt), stretching(now - this.wokeAt));
+  }
+  // Still unfolding after dormancy, or still shy after a pet: either way it is
+  // not going anywhere yet.
+  shy(now) {
+    return now - this.petAt < PET_SHY_MS || now - this.wokeAt < WAKE_STRETCH_MS;
+  }
+
   movingAt(now) {
     if (this.dead || this.asleep || !this.hatched(now)) return false;
     const i = Math.floor((Math.min(now, this.dieAt) - this.born) / TICK_MS);
@@ -435,7 +461,7 @@ export class Life {
 
 const SAVED = ['v', 'seed', 'name', 'born', 'tz', 'tick', 'moisture', 'food', 'calcium', 'grime', 'size',
   'distance', 'asleep', 'sealedTicks', 'awakeTicks', 'activeTicks', 'meals', 'mists', 'cleans', 'chalks',
-  'pets', 'petAt', 'adult', 'dead', 'diedAt', 'days', 'today', 'badges'];
+  'pets', 'petAt', 'wokeAt', 'adult', 'dead', 'diedAt', 'days', 'today', 'badges'];
 
 function dayRecord(d) {
   return { d, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, grew: false, ate: null, asleep: false, size: SIZE_HATCH, moisture: 1, grime: 0 };
