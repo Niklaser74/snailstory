@@ -1,7 +1,7 @@
 // Snail Story: the page around the simulation. Loads the snail, catches it up to
 // now, draws it, and wires the five things you can do. All rules live in
 // life.js; all sentences live in i18n.js and diary.js.
-import { Life, FOODS, LIFE_DAYS, DAY_MS, TICK_MS, BADGES, EGG_MS } from './life.js';
+import { Life, FOODS, LIFE_DAYS, DAY_MS, TICK_MS, BADGES, EGG_MS, PET_SHY_MS } from './life.js';
 import { entryFor, diaryFor } from './diary.js';
 import { View } from './view.js';
 import * as fmt from './fmt.js';
@@ -392,7 +392,9 @@ function frame() {
     view.draw(life, now, life.tz);
     const day = life.dayIndex(now);
     if (day !== lastDay) { lastDay = day; refreshAll(); }
-    else if (now - lastRefresh > 1000) refreshScreen(now);
+    // the portrait is redrawn on refresh, so it needs a faster beat while the
+    // snail has its eyes pulled in — otherwise it contradicts the terrarium
+    else if (now - lastRefresh > (now - life.petAt < PET_SHY_MS ? 120 : 1000)) refreshScreen(now);
     if (now - lastSave > 30000) save();
   }
   requestAnimationFrame(frame);

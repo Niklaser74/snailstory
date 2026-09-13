@@ -8,7 +8,7 @@
 // the odometer is one lap of the glass — no separate position to keep, save or
 // get out of step with the simulation.
 import { drawSnail } from './game/snails.js';
-import { gardenHour, isNight } from './life.js';
+import { gardenHour, isNight, retraction, PET_SHY_MS } from './life.js';
 
 // interior of the box, in millimetres: a realistic 30 × 24 cm keeper's box
 export const BOX_W = 300;
@@ -322,21 +322,17 @@ export class View {
     } else if (sealed) {
       this.sealedShell(life, scale);
     } else {
-      const retract = now - life.petAt < 12000;
+      // Touched: the eye stalks go in at once and come back out warily, and it
+      // sits still a while longer than that.
+      const shy = now - life.petAt;
       drawSnail(ctx, 'cartoon', {
         x: 0, y: 0, facing: 1, color: life.color, scale,
         t: now / 1000,
-        walking: !this.reduced && life.movingAt(now) && !retract,
+        walking: !this.reduced && life.movingAt(now) && shy >= PET_SHY_MS,
+        // reduced motion gets the same envelope, snapped rather than eased
+        retract: this.reduced ? (retraction(shy) > 0.5 ? 1 : 0) : retraction(shy),
         look: { shell: life.pattern, hat: 'none' },
       });
-      if (retract) {
-        // a pale bulge where the head went in
-        ctx.save();
-        ctx.scale(scale, scale);
-        ctx.fillStyle = 'rgba(230,215,190,0.85)';
-        ctx.beginPath(); ctx.ellipse(8, -6, 7, 5, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
     }
     ctx.restore();
   }
@@ -455,7 +451,8 @@ export class View {
     const scale = Math.min(w / 52, h / 44);
     drawSnail(ctx, 'cartoon', {
       x: w / 2, y: h - 2, facing: 1, color: life.color, scale,
-      t: 0, walking: false, look: { shell: life.pattern, hat: 'none' },
+      t: 0, walking: false, retract: retraction(Date.now() - life.petAt),
+      look: { shell: life.pattern, hat: 'none' },
     });
   }
 }

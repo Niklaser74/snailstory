@@ -42,6 +42,24 @@ export const DAY_ACTIVITY = 0.03;          // snails are nocturnal
 export const NIGHT_FROM = 21;              // garden hours
 export const NIGHT_TO = 6;
 
+// ---- being touched ----
+// A snail snaps its eye stalks in the moment it is touched and lets them back
+// out slowly and warily, which is the whole joke of petting one. It stays put
+// a good while longer than it stays blind.
+export const PET_SHY_MS = 12000;           // how long it sits still after a pet
+const PET_IN_MS = 250;                     // in they go, almost at once
+const PET_HELD_MS = 2500;                  // and stay in this long
+const PET_OUT_MS = 5500;                   // then back out, at snail speed
+
+// How far the eye stalks are pulled in, 0 (out) to 1 (in), `since` ms after the
+// last pet. Pure, so test/life.test.mjs can check the shape of it.
+export function retraction(since) {
+  if (!(since >= 0) || since >= PET_IN_MS + PET_HELD_MS + PET_OUT_MS) return 0;
+  if (since < PET_IN_MS) return since / PET_IN_MS;
+  if (since < PET_IN_MS + PET_HELD_MS) return 1;
+  return 1 - (since - PET_IN_MS - PET_HELD_MS) / PET_OUT_MS;
+}
+
 // The kinds of reminder the server knows how to send. The same four names
 // appear in supabase/migrations (a check constraint) and in the edge function
 // (the sentences); test/rules.test.mjs checks that they still agree.

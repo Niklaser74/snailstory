@@ -70,6 +70,11 @@ på ungefär en meter, och positionen är `distance mod omkrets`. En meter på
 mätaren är ett varv längs golv, glas, tak och tillbaka. Ingen position att spara
 och ingenting som kan hamna ur fas med simuleringen.
 
+**Klappar man den drar den in ögonstjälkarna.** Stjälkarna åker in på en
+fjärdedels sekund och kommer tillbaka ut under fem, och snigeln sitter still
+lite längre än så. Indragningen är en parameter i seriens `drawSnail`, inte
+något Snail Story målar över huvudet.
+
 **Sniglar är nattdjur.** Mellan nio på kvällen och sex på morgonen rör den sig;
 på dagen sitter den still. Fönstret bakom lådan visar den riktiga himlen, så det
 syns direkt vilken tid på dygnet spelet befinner sig i.

@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { LIFE_DAYS, OLD_DAYS, EGG_MS, TICK_MS, SEAL_AT, WAKE_AT, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
   MOIST_HOURS, FOOD_HOURS, CALCIUM_HOURS, GRIME_HOURS, NIGHT_ACTIVITY, DAY_ACTIVITY, SPEED_MM_S,
-  FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, identity, isNight, rnd } from '../js/life.js';
+  FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, PET_SHY_MS, retraction, identity, isNight, rnd } from '../js/life.js';
 import { DIARY_KEYS } from '../js/diary.js';
 import { keysOf } from '../js/i18n.js';
 import { placeOnPath, PERIMETER, BOX_W, BOX_H } from '../js/view.js';
@@ -145,6 +145,30 @@ test('no secret was committed with the migration', () => {
   assert.ok(sql.includes('vault.decrypted_secrets'), 'the cron key is read from the vault at run time');
   assert.ok(!/create_secret\s*\(\s*'[0-9a-f]{16}/.test(sql), 'a vault secret value is in the repository');
   assert.ok(!/[0-9a-f]{48}/.test(sql), 'something that looks like a key is in the repository');
+});
+
+test('a touched snail pulls its eyes in at once and lets them out slowly', () => {
+  assert.equal(retraction(0), 0, 'nothing has happened yet at the moment of the touch');
+  assert.equal(retraction(250), 1, 'in within a quarter second');
+  assert.equal(retraction(1000), 1, 'and held there');
+  assert.ok(retraction(4000) > 0 && retraction(4000) < 1, 'on its way back out');
+  assert.equal(retraction(8250), 0, 'fully out again');
+  assert.equal(retraction(60000), 0, 'and stays out');
+  // never negative, never above one, whatever it is handed
+  for (const v of [-1, -0.001, NaN, Infinity, 1e12]) {
+    const r = retraction(v);
+    assert.ok(r >= 0 && r <= 1, `retraction(${v}) = ${r}`);
+  }
+  // coming back out is monotone: no twitching
+  let prev = 1;
+  for (let ms = 2750; ms <= 8250; ms += 100) {
+    const r = retraction(ms);
+    assert.ok(r <= prev, `went back in at ${ms} ms`);
+    prev = r;
+  }
+  // the eyes are out again well before the snail starts moving
+  assert.equal(retraction(PET_SHY_MS), 0, 'eyes out before it dares move');
+  assert.ok(PET_SHY_MS > 8250, 'and it stays put a while after that');
 });
 
 test('a tick is five minutes, which is what the save assumes', () => {
