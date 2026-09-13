@@ -88,10 +88,16 @@ sitt eget scope, och en Snail Story-notis får aldrig hamna hos Snäckmageddons
 | Tabell | Vad |
 | --- | --- |
 | `snailstory_push_subscriptions` | endpoint och nycklar per webbläsare, max tio per konto (äldsta faller bort) |
-| `snailstory_reminders` | en rad per sak att säga: `(user_id, kind, years)` som nyckel, `due_at`, språk och snigelns namn |
+| `snailstory_reminders` | en rad per sak att säga: `(user_id, kind, years, snail)` som nyckel, `due_at`, språk och snigelns namn |
 
 `kind` är `hatch`, `sealed`, `birthday` eller `death`. `years` är 0 utom för
-födelsedagarna, som annars hade krockat med varandra i nyckeln.
+födelsedagarna, som annars hade krockat med varandra i nyckeln. `snail` är ett
+kort handtag klienten räknar fram ur snigelns seed — det behövs sedan lådan tog
+tre sniglar, för två sniglars första födelsedag är två olika dagar och hade
+annars skrivit över varandra utan att något fel syntes.
+
+**Kläckning, födelsedag och slut är per snigel; dvalan är lådans.** Behoven
+delas, så alla vakna sniglar bommar igen samma tick — en påminnelse, inte tre.
 
 Båda tabellerna har RLS på och alla rättigheter borttagna för `anon` och
 `authenticated` — allt går via security definer-funktioner som filtrerar på
@@ -103,7 +109,7 @@ Båda tabellerna har RLS på och alla rättigheter borttagna för `anon` och
 | --- | --- | --- |
 | `snailstory_save_push(endpoint, p256dh, auth, lang)` | authenticated | sparar den här webbläsarens prenumeration |
 | `snailstory_remove_push(endpoint)` | authenticated | tar bort den |
-| `snailstory_set_reminders(rows, lang, name)` | authenticated | ersätter hela schemat, max tio rader, bara tider i framtiden |
+| `snailstory_set_reminders(rows, lang)` | authenticated | ersätter hela schemat, max sexton rader, bara tider i framtiden. Varje rad bär sin egen snigel och sitt eget namn |
 | `snailstory_clear_reminders()` | authenticated | tömmer schemat |
 | `snailstory_take_due(limit)` | service_role | hämtar och **raderar** allt som förfallit, med prenumerationerna i samma svar |
 | `snailstory_cron_key()` | service_role | den delade hemligheten ur Vault |

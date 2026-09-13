@@ -140,6 +140,14 @@ test('the reminder kinds the client sends are the ones the table accepts', () =>
     'set_reminders must replace the schedule, not append to it');
 });
 
+test('a reminder key says which snail, so three do not overwrite each other', () => {
+  const sql = read('supabase/migrations/20260913210000_snailstory_reminders_per_snail.sql');
+  assert.ok(sql.includes('add primary key (user_id, kind, years, snail)'), 'the snail must be part of the key');
+  assert.ok(sql.includes('drop function if exists public.snailstory_set_reminders(jsonb, text, text)'),
+    'the old three-argument form has to go, or PostgREST sees two overloads');
+  assert.ok(sql.includes("r->>'snail'"), 'the insert has to read the snail from the row');
+});
+
 test('no secret was committed with the migration', () => {
   const sql = read('supabase/migrations/20260912190000_snailstory_reminders.sql');
   assert.ok(sql.includes('vault.decrypted_secrets'), 'the cron key is read from the vault at run time');

@@ -21,7 +21,7 @@ Byggstegsfritt PWA: ES-moduler, Canvas, inga npm-beroenden. Bor på
 ## Struktur
 
 ```
-js/life.js      Life: behov, dvala, växande, krypsträcka, dygnsposter, märken. Noll DOM
+js/life.js      Box: de fyra behoven, klockan, upp till tre Life. Life: en snigels eget. Noll DOM
 js/diary.js     dygnspost → i18n-nycklar + parametrar. Ingen text lagras
 js/fmt.js       mm/dygn/år formaterade per språk, delat av dagbok och paneler
 js/view.js      terrariet: rummet, fönstrets himmel, lådan, snigeln på sin bana
@@ -45,9 +45,19 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
 - **All slump hashas ur `(seed, tick)`**, aldrig ur en löpande generator. Annars blir
   snigeln olika beroende på hur ofta appen öppnats, och det syns direkt i
   path-independence-testet.
-- **Vanskötsel får aldrig döda.** Enda stället som sätter `dead` är ålderdom i `advanceTo`.
+- **Vanskötsel får aldrig döda.** Enda stället som sätter `dead` är ålderdom i `Life.finish`.
   Lägger du till ett nytt behov: det ska kunna sätta `asleep`, aldrig `dead`.
-- **Dvalan fryser allt.** I `step()` returnerar den sovande grenen innan något räknas ned.
+- **Behoven är lådans, inte snigelns.** `Box` äger fukt, mat, kalk och smuts och är den
+  enda klockan; `Life` äger storlek, krypsträcka, dvala, dagbok och sin död. Nytt fält:
+  fråga vem som skulle äga det i en riktig låda med tre sniglar.
+- **Behoven räknas ned lika fort oavsett antal sniglar.** En snigel till ska vara ett liv
+  till att följa, inte tre gånger pysslet.
+- **`Life.tick` är snigelns egen**, `boxTick - bornTick`, så en snigel som läggs till
+  senare får rätt ålder och rätt `(seed, tick)`-hash.
+- **Märken tillhör lådan**, inte en snigel: samma hylla för alla tre, vunna när någon av
+  dem klarar villkoret.
+- **Dvalan fryser snigeln, inte lådan.** I `Life.live()` returnerar den sovande grenen innan
+  något växer eller kryper; `Box.decay()` fortsätter oavsett, för avdunstning bryr sig inte.
 - **Dagboken lagrar inga meningar**, bara dygnets siffror i `days[]`. Texterna genereras
   vid visning, så språkbytet skriver om hela dagboken.
 - **En matsort får aldrig inleda en mening** i dagboken — svenskans och engelskans
@@ -74,8 +84,10 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
 
 ## Felsökning
 
-`window.snailstory.skip(dagar)` i konsolen drar tillbaka födelsedatumet och
-spelar upp livet, så en tre år gammal snigel går att titta på direkt.
+`window.snailstory.skip(dagar)` i konsolen drar tillbaka hela terrariet och
+spelar upp det, så tre år gamla sniglar går att titta på direkt.
+`window.snailstory.add('Namn')` lägger ett ägg till. `.box` är lådan, `.sel` den
+valda snigeln.
 
 ## Innan du är klar
 

@@ -8,6 +8,14 @@
 import { VAPID_PUBLIC_KEY, SUPABASE_URL } from './config.js';
 import { online } from './supa.js';
 
+// As many rows as the server will take in one schedule. Three snails can have
+// a hatching, six birthdays, three ends and one drying-out box between them.
+const ROW_MAX = 16;
+
+// A short, stable handle for one snail, used only to keep its reminders apart
+// from its box-mates' in the server's key.
+const snailKey = (s) => ((s.seed >>> 0).toString(36));
+
 function keyBytes(b64) {
   const s = b64.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (b64.length % 4)) % 4);
   const bin = atob(s);
@@ -40,7 +48,7 @@ export const push = {
 
   // Ask for permission (needs a user gesture), subscribe this browser, and
   // register the snail's schedule. Returns 'on', or why it could not be.
-  async enable(life, lang) {
+  async enable(box, lang) {
     if (!this.supported()) return 'unsupported';
     if (this.needsInstall()) return 'install';
     if (this.permission() === 'denied') return 'blocked';
@@ -53,7 +61,7 @@ export const push = {
       || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }));
     const j = sub.toJSON();
     await online.rpc('snailstory_save_push', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_lang: lang });
-    await this.sync(life, lang);
+    await this.sync(box, lang);
     return 'on';
   },
 
@@ -66,20 +74,23 @@ export const push = {
     try { if (sub) await sub.unsubscribe(); } catch { /* best effort */ }
   },
 
-  // Hand the server the snail's whole known future. Replaces what was there, so
-  // it is always the latest forecast and never an accumulating queue.
-  async sync(life, lang, { keepalive = false } = {}) {
-    if (!life || !online.signedIn()) return false;
-    const rows = life.schedule(Date.now()).map((r) => ({
+  // Hand the server the terrarium's whole known future. Replaces what was there,
+  // so it is always the latest forecast and never an accumulating queue.
+  //
+  // Three snails have more to say than one: each carries its own name and a
+  // short key of its own, because two snails' first birthdays are two different
+  // days and must not overwrite each other. Soonest first, capped — by the time
+  // the early ones fire the app has been opened and the list rewritten.
+  async sync(box, lang, { keepalive = false } = {}) {
+    if (!box || !online.signedIn()) return false;
+    const rows = box.schedule(Date.now()).slice(0, ROW_MAX).map((r) => ({
       kind: r.kind,
       at: new Date(r.at).toISOString(),
-      years: r.years ?? null,
+      years: r.years ?? 0,
+      snail: r.snail ? snailKey(r.snail) : '',
+      name: (r.snail && r.snail.name ? r.snail.name : '').slice(0, 24),
     }));
-    await online.rpc('snailstory_set_reminders', {
-      p_rows: rows,
-      p_lang: lang,
-      p_name: (life.name || '').slice(0, 24),
-    }, { keepalive });
+    await online.rpc('snailstory_set_reminders', { p_rows: rows, p_lang: lang }, { keepalive });
     return true;
   },
 
@@ -92,12 +103,12 @@ export const push = {
   // The subscription belongs to this service worker scope, and the browser can
   // drop it on its own (a push service rotating endpoints, a long absence).
   // Quietly put it back when permission is still granted.
-  async resubscribe(life, lang) {
+  async resubscribe(box, lang) {
     try {
       if (!this.supported() || this.permission() !== 'granted' || this.needsInstall()) return false;
       if (!online.signedIn()) return false;
       if (await this.current()) return false;
-      await this.enable(life, lang);
+      await this.enable(box, lang);
       return true;
     } catch { return false; }
   },

@@ -24,5 +24,6 @@ export function body(kind, lang, name, years = 0) {
 // A snail can be left nameless, and the notification still has to read as Swedish.
 export const fallbackName = (lang) => (lang === 'en' ? 'Your snail' : 'Snigeln');
 
-// One tag per kind, so a birthday never quietly replaces "it has sealed up".
-export const tagFor = (kind, years) => `snailstory-${kind}${years || ''}`;
+// One tag per kind and per snail, so a birthday never quietly replaces "it has
+// sealed up" — and one snail's news never replaces its box-mate's.
+export const tagFor = (kind, years, snail) => ['snailstory', kind, years || 0, snail || ''].join('-');

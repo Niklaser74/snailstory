@@ -29,8 +29,30 @@ button { font: inherit; }
 /* ---------- the top bar ---------- */
 #bar { position: fixed; top: 0; left: 0; right: 0; height: calc(50px + var(--safe-t)); padding: var(--safe-t) 10px 0;
   display: flex; align-items: center; gap: 8px; background: var(--bar); color: #fff; z-index: 5; backdrop-filter: blur(4px); }
-#portrait { width: 44px; height: 34px; flex: none; }
-#bar .who { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+/* The snails in the box, one tab each, plus a slot for another egg. The
+   selected one is what the name, the stats and the diary are about. */
+.snail-row { display: flex; align-items: center; gap: 4px; flex: none; }
+.snail-tab { display: flex; align-items: center; gap: 4px; border: 0; border-radius: 12px; padding: 2px 6px 2px 2px;
+  background: transparent; color: inherit; cursor: pointer; font: inherit; max-width: 108px; opacity: 0.55; }
+.snail-tab canvas { width: 34px; height: 26px; flex: none; display: block; }
+.snail-tab span { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snail-tab.on { opacity: 1; background: rgba(255, 250, 240, 0.14); }
+.snail-tab:hover { opacity: 0.85; }
+.snail-tab.on:hover { opacity: 1; }
+.snail-tab.add { width: 34px; height: 30px; justify-content: center; padding: 0; font-size: 20px; font-weight: 800;
+  line-height: 1; border: 1px dashed rgba(255, 250, 240, 0.4); opacity: 0.7; }
+.snail-tab.add:hover { opacity: 1; }
+/* one snail: no point dressing it up as a tab */
+.snail-row:has(> .snail-tab:only-child) .snail-tab { opacity: 1; background: none; padding-left: 0; }
+.snail-row:has(> .snail-tab:only-child) .snail-tab span { display: none; }
+/* On a phone the row, the name and the buttons cannot all have room. The
+   stage is in "Om snigeln" anyway; the name is what you need in the bar. */
+@media (max-width: 520px) {
+  .snail-tab span { display: none; }
+  .snail-tab { max-width: none; padding: 2px; }
+  #bar-stage { display: none; }
+}
+#bar .who { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; }
 #bar strong { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 999px;
   background: rgba(255,255,255,0.16); white-space: nowrap; }
@@ -39,7 +61,7 @@ button { font: inherit; }
 
 /* ---------- the screen ---------- */
 #stage { position: fixed; inset: calc(50px + var(--safe-t)) 0 0; display: flex; flex-direction: column; padding: 0 10px calc(8px + var(--safe-b)); }
-#box { flex: 1 1 auto; width: 100%; min-height: 160px; max-height: 62vh; display: block; }
+#terrarium { flex: 1 1 auto; width: 100%; min-height: 160px; max-height: 62vh; display: block; }
 .mood { margin: auto 0 0; padding-top: 3px; text-align: center; color: #e9e2d2; font-weight: 700; font-size: 14px; min-height: 1.2em; }
 
 .facts { display: flex; gap: 6px; margin: 6px 0 0; }

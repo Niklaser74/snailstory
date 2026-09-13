@@ -25,7 +25,7 @@
 
 <!-- the top bar -->
 <header id="bar" hidden>
-  <canvas id="portrait" width="56" height="42" aria-hidden="true"></canvas>
+  <div id="snail-row" class="snail-row" role="group" data-i18n-aria="aria.snails" aria-label="Sniglarna i terrariet"></div>
   <div class="who">
     <strong id="bar-name">&nbsp;</strong>
     <span id="bar-stage" class="chip"></span>
@@ -37,7 +37,7 @@
 </header>
 
 <main id="stage" hidden>
-  <canvas id="box" data-i18n-aria="aria.box" aria-label="Terrariet"></canvas>
+  <canvas id="terrarium" data-i18n-aria="aria.box" aria-label="Terrariet"></canvas>
   <p id="mood" class="mood"></p>
 
   <div id="facts" class="facts">
@@ -102,12 +102,32 @@
 <div id="egg" class="overlay" hidden>
   <div class="panel small">
     <h2 data-i18n="egg.title">Ägget</h2>
+    <p id="egg-name" class="best"></p>
     <p id="egg-wait" class="score"></p>
     <p class="why" data-i18n="egg.note"></p>
+    <div class="actions">
+      <button id="egg-close" class="btn primary" data-i18n="egg.ok">Titta i terrariet</button>
+    </div>
   </div>
 </div>
 
 <!-- feeding -->
+<div id="add" class="overlay" hidden>
+  <div class="panel small">
+    <h2 data-i18n="add.title">Ett ägg till</h2>
+    <p class="why" data-i18n="add.text"></p>
+    <label class="field">
+      <span data-i18n="start.name">Namn</span>
+      <input id="add-name" type="text" maxlength="16" autocomplete="off" data-i18n-ph="start.placeholder" placeholder="Namnlös">
+    </label>
+    <div class="actions">
+      <button id="add-lay" class="btn primary" data-i18n="add.go">Lägg ägget i jorden</button>
+      <button id="add-dice" class="btn secondary" data-i18n="start.dice">Slumpa namn</button>
+      <button id="add-cancel" class="btn secondary" data-i18n="add.cancel">Avbryt</button>
+    </div>
+  </div>
+</div>
+
 <div id="feed" class="overlay" hidden>
   <div class="panel">
     <h2 data-i18n="feed.title">Vad får den?</h2>
@@ -119,7 +139,7 @@
 <!-- the diary -->
 <div id="diary" class="overlay" hidden>
   <div class="panel tall">
-    <h2 data-i18n="diary.title">Dagbok</h2>
+    <h2 id="diary-title">Dagbok</h2>
     <div id="diary-list" class="diary"></div>
     <div class="actions">
       <button id="diary-copy" class="btn secondary" data-i18n="diary.copy">Kopiera dagboken</button>

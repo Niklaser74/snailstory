@@ -1,7 +1,7 @@
 // Snail Story: the page around the simulation. Loads the snail, catches it up to
 // now, draws it, and wires the five things you can do. All rules live in
 // life.js; all sentences live in i18n.js and diary.js.
-import { Life, FOODS, LIFE_DAYS, DAY_MS, TICK_MS, BADGES, EGG_MS } from './life.js';
+import { Box, FOODS, LIFE_DAYS, DAY_MS, TICK_MS, BADGES, EGG_MS, SNAIL_MAX } from './life.js';
 import { entryFor, diaryFor } from './diary.js';
 import { View } from './view.js';
 import * as fmt from './fmt.js';
@@ -18,25 +18,30 @@ const store = {
 };
 
 setLang(detectLang());
-let life = null;
+let box = null;      // the terrarium: the four needs, the clock, the snails
+let sel = null;      // the snail the bar, the diary and the pet button are about
 let view = null;
 let lastSave = 0;
 const FOOD_ICON = { lettuce: '🥬', cucumber: '🥒', carrot: '🥕', dandelion: '🌿', apple: '🍎', oats: '🌾' };
 
 // ---------- loading ----------
 function load() {
-  const saved = store.get('life', null);
-  if (!saved) { showStart(); return; }
-  try { life = Life.fromJSON(saved); } catch { showStart(); return; }
-  const before = snapshot(life);
+  const saved = store.get('box', null);
+  const legacy = saved ? null : store.get('life', null);   // a save from before the box
+  if (!saved && !legacy) { showStart(); return; }
+  try { box = saved ? Box.fromJSON(saved) : Box.fromLegacy(legacy); } catch { showStart(); return; }
+  if (!box.snails.length) { showStart(); return; }
+  sel = box.snails[0];
+  const before = snapshot(box);
   const awayFor = Date.now() - (store.get('savedAt', Date.now()) || Date.now());
-  life.advanceTo(Date.now());
+  box.advanceTo(Date.now());
   begin();
-  life.takeEvents();                         // the away panel says it better than toasts
+  const away = box.takeEvents();             // the away panel says it better than toasts
   if (awayFor > 30 * 60 * 1000) showAway(before, awayFor);
-  if (life.dead) showDeath();
-  else if (!life.hatched(Date.now())) $('egg').hidden = false;
+  for (const e of away) if (e.type === 'died') queueDeath(e.snail);
+  showNextDeath();
   save();
+  if (legacy) store.del('life');             // it lives in the box now
   startReminders();
 }
 
@@ -45,23 +50,28 @@ function load() {
 async function startReminders() {
   try {
     remindersOn = await push.active();
-    if (!remindersOn) { await push.resubscribe(life, getLang()); remindersOn = await push.active(); }
-    if (remindersOn) await push.sync(life, getLang());
+    if (!remindersOn) { await push.resubscribe(box, getLang()); remindersOn = await push.active(); }
+    if (remindersOn) await push.sync(box, getLang());
   } catch { /* the game does not need any of this */ }
 }
-function snapshot(l) {
-  return { size: l.size, distance: l.distance, asleep: l.asleep, day: l.dayIndex(Date.now()) };
+// Enough of the terrarium to say what changed while you were away.
+function snapshot(b) {
+  return {
+    size: b.best((s2) => s2.size),
+    distance: b.snails.reduce((a, s2) => a + s2.distance, 0),
+    asleep: b.snails.length > 0 && b.snails.every((s2) => s2.asleep),
+  };
 }
 function begin() {
   $('bar').hidden = false;
   $('stage').hidden = false;
   $('start').hidden = true;
-  if (!view) view = new View($('box'));
+  if (!view) view = new View($('terrarium'));
   refreshAll();
 }
 function save() {
-  if (!life) return;
-  store.set('life', life.toJSON());
+  if (!box) return;
+  store.set('box', box.toJSON());
   store.set('savedAt', Date.now());
   lastSave = Date.now();
 }
@@ -78,43 +88,100 @@ function showStart() {
 }
 $('btn-dice').addEventListener('click', () => { $('name-input').value = NAMES[Math.floor(Math.random() * NAMES.length)]; });
 $('btn-lay').addEventListener('click', () => {
-  const name = ($('name-input').value || '').trim().slice(0, 16) || t('start.placeholder');
-  life = new Life({ seed: (Date.now() ^ (Math.random() * 0xffffffff)) | 0, name, born: Date.now() });
-  life.checkBadges(Date.now());
-  life.takeEvents();
+  const now = Date.now();
+  box = new Box({ born: now });
+  layEgg(pickedName(), now);
   begin();
-  $('egg').hidden = false;
-  sfx.crate();
-  save();
   syncReminders(200);
 });
-$('egg').addEventListener('click', () => { $('egg').hidden = true; });
+$('egg-close').addEventListener('click', () => { $('egg').hidden = true; });
+
+// A name from the input if there is one, otherwise one of the suggestions, so
+// nobody ends up with three snails all called the same thing.
+function pickedName() {
+  const typed = ($('name-input').value || '').trim().slice(0, 16);
+  if (typed) return typed;
+  const taken = new Set((box ? box.snails : []).map((s2) => s2.name));
+  const free = NAMES.filter((n) => !taken.has(n));
+  return (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
+}
+
+function layEgg(name, now = Date.now()) {
+  if (!box || !box.hasRoom()) return null;
+  const s2 = box.add({ name, seed: (Date.now() ^ (Math.random() * 0xffffffff)) | 0, now });
+  sel = s2;
+  box.checkBadges(now);
+  box.takeEvents();
+  $('name-input').value = '';
+  $('egg-name').textContent = name;
+  $('egg').hidden = false;
+  sfx.crate();
+  refreshAll();
+  save();
+  syncReminders(200);
+  return s2;
+}
+
+// Another egg, from the snail row or the menu. The box holds three.
+function addSnail() {
+  if (!box) return;
+  if (!box.hasRoom()) { toast(t('add.full', { max: String(SNAIL_MAX) })); return; }
+  $('add-name').value = '';
+  $('add').hidden = false;
+  setTimeout(() => $('add-name').focus(), 50);
+}
+$('add-dice').addEventListener('click', () => {
+  const taken = new Set(box.snails.map((s2) => s2.name));
+  const free = NAMES.filter((n) => !taken.has(n));
+  $('add-name').value = (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
+});
+$('add-cancel').addEventListener('click', () => { $('add').hidden = true; });
+$('add-lay').addEventListener('click', () => {
+  const typed = ($('add-name').value || '').trim().slice(0, 16);
+  $('add').hidden = true;
+  const taken = new Set(box.snails.map((s2) => s2.name));
+  const free = NAMES.filter((n) => !taken.has(n));
+  layEgg(typed || (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))]);
+  toast(t('add.laid'));
+});
 
 // ---------- the five things you can do ----------
+// Water, food, chalk and a wipe are the box's; only petting is done to one
+// snail. So the first four wake whoever is sealed in, and the toast says how
+// many came out rather than naming one of three.
 function act(fn, message) {
-  if (!life || life.dead) { toast(t('act.dead', { name: name() })); return; }
+  if (!box || !box.snails.length) return;
   const now = Date.now();
-  const wasAsleep = life.asleep;
+  const sleeping = box.snails.filter((s2) => s2.asleep).length;
   fn(now);
   handleEvents();
   if (message) toast(message());
-  if (wasAsleep && !life.asleep) toast(t('act.woke', { name: name() }));
+  const woke = sleeping - box.snails.filter((s2) => s2.asleep).length;
+  if (woke === 1) toast(t('act.woke', { name: wokeName() }));
+  else if (woke > 1) toast(t('act.wokeMany', { n: String(woke) }));
   refreshAll();
   save();
   syncReminders();
 }
-$('a-mist').addEventListener('click', () => act((now) => { life.mist(now); view.mistBurst(); sfx.splash(); }, () => t('act.misted')));
-$('a-chalk').addEventListener('click', () => act((now) => { life.chalk(now); sfx.crate(); }, () => t('act.chalked')));
-$('a-clean').addEventListener('click', () => act((now) => { life.clean(now); sfx.shove(); }, () => t('act.cleaned')));
-$('a-pet').addEventListener('click', () => act((now) => { life.pet(now); sfx.turn(); }, () => t('act.petted')));
+function wokeName() {
+  const s2 = box.snails.slice().sort((a, b) => b.wokeAt - a.wokeAt)[0];
+  return s2 ? s2.name : t('start.placeholder');
+}
+$('a-mist').addEventListener('click', () => act((now) => { box.mist(now); view.mistBurst(); sfx.splash(); }, () => t('act.misted')));
+$('a-chalk').addEventListener('click', () => act((now) => { box.chalk(now); sfx.crate(); }, () => t('act.chalked')));
+$('a-clean').addEventListener('click', () => act((now) => { box.clean(now); sfx.shove(); }, () => t('act.cleaned')));
+$('a-pet').addEventListener('click', () => {
+  if (!sel || sel.dead) return;
+  act((now) => { box.advanceTo(now); sel.pet(now); sfx.turn(); }, () => t('act.petted', { name: sel.name }));
+});
 $('a-feed').addEventListener('click', () => {
-  if (!life || life.dead) { toast(t('act.dead', { name: name() })); return; }
+  if (!box || !box.snails.length) return;
   $('feed-list').innerHTML = FOODS.map((f) =>
     `<button class="food" data-food="${f}"><span class="ico">${FOOD_ICON[f]}</span><span>${t('food.' + f)}</span></button>`).join('');
   $('feed-list').querySelectorAll('[data-food]').forEach((b) => b.addEventListener('click', () => {
     const f = b.dataset.food;
     $('feed').hidden = true;
-    act((now) => { life.feed(now, f); sfx.tick(); view.sparkle('#6cc25a', 10); }, () => t('act.fed', { food: t('food.' + f) }));
+    act((now) => { box.feed(now, f); sfx.tick(); view.sparkle('#6cc25a', 10); }, () => t('act.fed', { food: t('food.' + f) }));
   }));
   $('feed').hidden = false;
 });
@@ -122,47 +189,94 @@ $('feed-close').addEventListener('click', () => { $('feed').hidden = true; });
 
 // ---------- events ----------
 function handleEvents() {
-  for (const e of life.takeEvents()) {
+  let sealed = 0;
+  for (const e of box.takeEvents()) {
     switch (e.type) {
-      case 'sealed': toast(t('act.sealed', { name: name() })); sfx.tickLow(); syncReminders(); break;
+      case 'sealed': sealed++; break;          // said once below, however many sealed
       case 'woke': break;                      // act() already says it
       case 'adult': sfx.win(); break;
       case 'badge': {
-        const b = t('badge.' + e.id);
-        toast(t('badge.new', { name: b }));
+        toast(t('badge.new', { name: t('badge.' + e.id) }));
         sfx.crate();
         break;
       }
-      case 'died': showDeath(); break;
+      case 'died': queueDeath(e.snail); break;
       default: break;
     }
   }
+  if (sealed === 1) toast(t('act.sealed', { name: lastSealedName() }));
+  else if (sealed > 1) toast(t('act.sealedMany', { n: String(sealed) }));
+  if (sealed) { sfx.tickLow(); syncReminders(); }
+  showNextDeath();
+}
+function lastSealedName() {
+  const s2 = box.snails.find((x) => x.asleep);
+  return s2 ? s2.name : t('start.placeholder');
 }
 
 // ---------- the screen ----------
-function name() { return life && life.name ? life.name : t('start.placeholder'); }
+function name() { return sel && sel.name ? sel.name : t('start.placeholder'); }
 
 function refreshAll() {
-  if (!life) return;
+  if (!box || !box.snails.length) return;
+  if (!sel || !box.snails.includes(sel)) sel = box.snails[0];
   const now = Date.now();
   const lang = getLang();
+  refreshRow(now);
   $('bar-name').textContent = name();
-  $('bar-stage').textContent = t('stage.' + life.stage(now));
-  View.drawPortrait($('portrait'), life);
-  const waiting = t('egg.wait', { time: fmt.span(Math.max(0, life.hatchAt - now), lang) });
-  $('mood').textContent = life.hatched(now) ? t('mood.' + life.mood(now)) : waiting;
+  $('bar-stage').textContent = t('stage.' + sel.stage(now));
+  const waiting = t('egg.wait', { time: fmt.span(Math.max(0, sel.hatchAt - now), lang) });
+  $('mood').textContent = sel.hatched(now) ? t('mood.' + sel.mood(now)) : waiting;
   $('egg-wait').textContent = waiting;
-  $('f-age').textContent = fmt.age(life.ageMs(now), lang);
-  $('f-size').textContent = life.hatched(now) ? fmt.size(life.size, lang) : t('stats.none');
-  $('f-dist').textContent = fmt.distance(life.distanceAt(now), lang);
-  const vals = { moisture: life.moisture, food: life.food, calcium: life.calcium, clean: 1 - life.grime };
+  $('f-age').textContent = fmt.age(sel.ageMs(now), lang);
+  $('f-size').textContent = sel.hatched(now) ? fmt.size(sel.size, lang) : t('stats.none');
+  $('f-dist').textContent = fmt.distance(sel.distanceAt(now), lang);
+  // the bars are the box's condition, shared by everyone in it
+  const vals = { moisture: box.moisture, food: box.food, calcium: box.calcium, clean: 1 - box.grime };
   for (const el of document.querySelectorAll('.need')) {
     const v = vals[el.dataset.need];
     el.querySelector('i').style.width = Math.round(v * 100) + '%';
     el.classList.toggle('low', v < 0.25);
   }
-  const done = life.dead;
-  for (const id of ['a-mist', 'a-feed', 'a-chalk', 'a-clean', 'a-pet']) $(id).disabled = done;
+  $('a-pet').disabled = !sel || sel.dead;
+}
+
+// One portrait per snail, plus a slot for another egg while there is room.
+// Tapping one picks whose name, age and diary the rest of the screen is about.
+function refreshRow(now) {
+  const row = $('snail-row');
+  const key = box.snails.map((s2) => s2.seed).join(',') + '|' + box.room;
+  if (row.dataset.key !== key) {
+    row.dataset.key = key;
+    row.replaceChildren();
+    for (const s2 of box.snails) {
+      const b = document.createElement('button');
+      b.className = 'snail-tab';
+      b.dataset.seed = String(s2.seed);
+      const c = document.createElement('canvas');
+      c.width = 56; c.height = 42; c.setAttribute('aria-hidden', 'true');
+      b.append(c, document.createElement('span'));
+      b.addEventListener('click', () => { sel = s2; refreshAll(); });
+      row.append(b);
+    }
+    if (box.hasRoom()) {
+      const a = document.createElement('button');
+      a.className = 'snail-tab add';
+      a.textContent = '+';
+      a.setAttribute('aria-label', t('add.aria'));
+      a.addEventListener('click', addSnail);
+      row.append(a);
+    }
+  }
+  for (const b of row.querySelectorAll('[data-seed]')) {
+    const s2 = box.snails.find((x) => String(x.seed) === b.dataset.seed);
+    if (!s2) continue;
+    b.classList.toggle('on', s2 === sel);
+    b.setAttribute('aria-pressed', String(s2 === sel));
+    b.querySelector('span').textContent = s2.name;
+    if (s2.hatched(now)) View.drawPortrait(b.querySelector('canvas'), s2);
+    else View.drawEggPortrait(b.querySelector('canvas'));
+  }
 }
 
 let toastT = 0;
@@ -181,7 +295,8 @@ $('diary-copy').addEventListener('click', async () => {
 });
 function renderDiary() {
   const lang = getLang();
-  const entries = diaryFor(life, lang);
+  const entries = diaryFor(sel, lang);
+  $('diary-title').textContent = t('diary.title.of', { name: name() });
   if (!entries.length) { $('diary-list').innerHTML = `<p class="why">${t('diary.empty')}</p>`; return; }
   $('diary-list').innerHTML = entries.map((e) => {
     const birthday = e.lines.some((l) => l.key === 'd.birthday');
@@ -198,7 +313,7 @@ function line(l) {
 function diaryText() {
   const lang = getLang();
   const head = `${name()} — ${t('app.name')} (snails.se/snailstory/)`;
-  const body = diaryFor(life, lang).slice().reverse()
+  const body = diaryFor(sel, lang).slice().reverse()
     .map((e) => `${t('diary.day', { day: String(e.day) })}. ${e.lines.map((l) => line(l)).join(' ')}`).join('\n');
   return `${head}\n\n${body}\n`;
 }
@@ -206,9 +321,9 @@ function diaryText() {
 $('o-badges').addEventListener('click', () => { renderBadges(); $('badges').hidden = false; });
 $('badges-close').addEventListener('click', () => { $('badges').hidden = true; });
 function renderBadges() {
-  $('badges-count').textContent = t('badges.count', { have: String(life.badges.length), all: String(BADGES.length) });
+  $('badges-count').textContent = t('badges.count', { have: String(box.badges.length), all: String(BADGES.length) });
   $('badges-list').innerHTML = BADGES.map((b) => {
-    const has = life.badges.includes(b.id);
+    const has = box.badges.includes(b.id);
     return `<li class="${has ? 'have' : 'locked'}"><b>${t('badge.' + b.id)}</b><small>${t('badge.' + b.id + '.how')}</small></li>`;
   }).join('');
 }
@@ -218,21 +333,21 @@ $('stats-close').addEventListener('click', () => { $('stats').hidden = true; });
 function renderStats() {
   const now = Date.now();
   const lang = getLang();
-  const meals = Object.values(life.meals).reduce((a, b) => a + b, 0);
-  const fav = life.favouriteFood();
-  const left = Math.max(0, life.dieAt - now);
+  const meals = box.totalMeals();
+  const fav = box.favouriteFood();
+  const left = Math.max(0, sel.dieAt - now);
   const rows = [
-    ['stats.born', new Date(life.born).toLocaleDateString(lang === 'sv' ? 'sv-SE' : 'en-GB')],
-    ['stats.age', fmt.age(life.ageMs(now), lang)],
-    ['stats.stage', t('stage.' + life.stage(now))],
-    ['stats.size', fmt.size(life.size, lang)],
-    ['stats.whorls', fmt.number(life.whorls(now), 0, lang)],
-    ['stats.distance', fmt.distance(life.distance, lang)],
+    ['stats.born', new Date(sel.laidAt).toLocaleDateString(lang === 'sv' ? 'sv-SE' : 'en-GB')],
+    ['stats.age', fmt.age(sel.ageMs(now), lang)],
+    ['stats.stage', t('stage.' + sel.stage(now))],
+    ['stats.size', fmt.size(sel.size, lang)],
+    ['stats.whorls', fmt.number(sel.whorls(now), 0, lang)],
+    ['stats.distance', fmt.distance(sel.distance, lang)],
     ['stats.meals', fmt.number(meals, 0, lang)],
     ['stats.favourite', fav ? t('food.' + fav) : t('stats.none')],
-    ['stats.sleep', life.sealedTicks ? fmt.span(life.sealedTicks * TICK_MS, lang) : t('stats.none')],
-    ['stats.pets', fmt.number(life.pets, 0, lang)],
-    ['stats.lifeLeft', life.dead ? t('stats.none') : fmt.age(left, lang)],
+    ['stats.sleep', sel.sealedTicks ? fmt.span(sel.sealedTicks * TICK_MS, lang) : t('stats.none')],
+    ['stats.pets', fmt.number(sel.pets, 0, lang)],
+    ['stats.lifeLeft', sel.dead ? t('stats.none') : fmt.age(left, lang)],
   ];
   $('stats-title').textContent = t('stats.title', { name: name() });
   $('stats-list').innerHTML = rows.map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join('');
@@ -240,46 +355,76 @@ function renderStats() {
 
 function showAway(before, awayFor) {
   const lang = getLang();
-  const grew = life.size - before.size > 0.3;
-  const crawled = life.distance - before.distance;
+  const after = snapshot(box);
+  const grew = after.size - before.size > 0.3;
+  const crawled = after.distance - before.distance;
   const bits = [`<p>${t('away.span', { span: fmt.span(awayFor, lang) })}</p>`];
-  if (grew) bits.push(`<p>${t('away.grew', { size: fmt.size(life.size, lang) })}</p>`);
+  if (grew) bits.push(`<p>${t('away.grew', { size: fmt.size(after.size, lang) })}</p>`);
   if (crawled > 20) bits.push(`<p>${t('away.crawled', { dist: fmt.distance(crawled, lang) })}</p>`);
-  if (life.asleep) bits.push(`<p class="why">${t(before.asleep ? 'away.stillSealed' : 'away.sealed')}</p>`);
+  if (after.asleep) bits.push(`<p class="why">${t(before.asleep ? 'away.stillSealed' : 'away.sealed')}</p>`);
   if (bits.length === 1) bits.push(`<p class="why">${t('away.nothing')}</p>`);
   $('away-body').innerHTML = bits.join('');
   $('away').hidden = false;
 }
 $('away-close').addEventListener('click', () => { $('away').hidden = true; });
 
-function showDeath() {
+// One snail reaching the end no longer ends the game: it leaves the box, its
+// numbers go on the shelf of past snails, and whoever is left carries on.
+const deaths = [];
+function queueDeath(snail) { if (snail && !deaths.includes(snail)) deaths.push(snail); }
+function showNextDeath() {
+  if (!deaths.length || !$('death').hidden) return;
   const lang = getLang();
+  const s2 = deaths[0];
   $('death-body').textContent = t('death.body', {
-    name: name(), age: fmt.age(life.dieAt - life.born, lang),
-    dist: fmt.distance(life.distance, lang), size: fmt.size(life.size, lang),
+    name: s2.name, age: fmt.age(s2.dieAt - s2.laidAt, lang),
+    dist: fmt.distance(s2.distance, lang), size: fmt.size(s2.size, lang),
   });
   $('death').hidden = false;
   sfx.sudden();
 }
-$('death-close').addEventListener('click', () => { $('death').hidden = true; });
-$('death-new').addEventListener('click', () => startOver());
+// Saying goodbye is what actually takes the snail out of the box, so the panel
+// cannot be dismissed into a state where a dead shell is still crawling.
+function closeDeath() {
+  const s2 = deaths.shift();
+  if (s2) {
+    remember(s2);
+    box.remove(s2);
+    if (sel === s2) sel = box.snails[0] || null;
+  }
+  $('death').hidden = true;
+  save();
+  syncReminders(200);
+  if (!box.snails.length) { startOver({ keepPrevious: true }); return; }
+  refreshAll();
+  showNextDeath();
+}
+function remember(s2) {
+  const prev = store.get('previous', []);
+  prev.push({ name: s2.name, age: s2.ageMs(Date.now()), distance: s2.distance, size: s2.size, days: s2.days.length });
+  store.set('previous', prev.slice(-10));
+}
+$('death-close').addEventListener('click', closeDeath);
+$('death-new').addEventListener('click', () => { closeDeath(); if (box) addSnail(); });
 $('m-reset').addEventListener('click', () => {
-  $('reset-body').textContent = t('reset.body', { name: name() });
+  if (!box) return;
+  $('reset-body').textContent = box.snails.length > 1
+    ? t('reset.bodyMany', { n: String(box.snails.length) })
+    : t('reset.body', { name: name() });
   $('reset').hidden = false;
 });
 $('reset-no').addEventListener('click', () => { $('reset').hidden = true; });
 $('reset-yes').addEventListener('click', () => { $('reset').hidden = true; startOver(); });
-function startOver() {
-  if (life) {
-    const prev = store.get('previous', []);
-    prev.push({ name: name(), age: life.ageMs(Date.now()), distance: life.distance, size: life.size, days: life.days.length });
-    store.set('previous', prev.slice(-10));
-  }
+function startOver({ keepPrevious = false } = {}) {
+  if (box && !keepPrevious) for (const s2 of box.snails) remember(s2);
   push.clearSchedule().catch(() => {});
+  store.del('box');
   store.del('life');
   store.del('savedAt');
-  life = null;
-  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg']) $(id).hidden = true;
+  box = null;
+  sel = null;
+  deaths.length = 0;
+  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add']) $(id).hidden = true;
   $('name-input').value = '';
   showStart();
 }
@@ -307,14 +452,14 @@ document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('clic
   setLang(b.dataset.lang);
   refreshMute();
   refreshNotifyButton();
-  if (life) refreshAll(); else showStart();
+  if (box) refreshAll(); else showStart();
   if (!$('diary').hidden) renderDiary();
   if (!$('badges').hidden) renderBadges();
   if (!$('stats').hidden) renderStats();
 }));
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  for (const id of ['help', 'reset', 'feed', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
+  for (const id of ['help', 'reset', 'feed', 'add', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
     if (!$(id).hidden) { $(id).hidden = true; return; }
   }
 });
@@ -357,7 +502,7 @@ $('m-notify').addEventListener('click', async () => {
       await push.disable();
       toast(t('notify.off'));
     } else {
-      const r = await push.enable(life, getLang());
+      const r = await push.enable(box, getLang());
       toast(t(r === 'on' ? 'notify.on' : r === 'blocked' ? 'notify.denied' : r === 'install' ? 'menu.notifyInstall' : 'notify.failed'));
     }
   } catch {
@@ -372,29 +517,28 @@ let syncT = 0;
 function syncReminders(soon = 3000) {
   if (!remindersOn) return;
   clearTimeout(syncT);
-  syncT = setTimeout(() => { push.sync(life, getLang()).catch(() => {}); }, soon);
+  syncT = setTimeout(() => { push.sync(box, getLang()).catch(() => {}); }, soon);
 }
 function syncRemindersNow() {
   if (!remindersOn) return;
   clearTimeout(syncT);
-  push.sync(life, getLang(), { keepalive: true }).catch(() => {});
+  push.sync(box, getLang(), { keepalive: true }).catch(() => {});
 }
 
 // ---------- the loop ----------
 let lastDay = -1;
 function frame() {
-  if (life) {
+  if (box && box.snails.length) {
     const now = Date.now();
-    const hatched = life.hatched(now);
-    life.advanceTo(now);
+    box.advanceTo(now);
     handleEvents();
-    if (hatched && !$('egg').hidden) $('egg').hidden = true;
-    view.draw(life, now, life.tz);
-    const day = life.dayIndex(now);
+    if (!$('egg').hidden && box.snails.every((s2) => s2.hatched(now))) $('egg').hidden = true;
+    view.draw(box, now);
+    const day = sel ? sel.dayIndex(now) : 0;
     if (day !== lastDay) { lastDay = day; refreshAll(); }
-    // the portrait is redrawn on refresh, so it needs a faster beat while the
-    // snail has its eyes pulled in — otherwise it contradicts the terrarium
-    else if (now - lastRefresh > (life.shy(now) ? 120 : 1000)) refreshScreen(now);
+    // the portraits are redrawn on refresh, so they need a faster beat while
+    // anyone has their eyes pulled in — otherwise the row contradicts the box
+    else if (now - lastRefresh > (box.snails.some((s2) => s2.shy(now)) ? 120 : 1000)) refreshScreen(now);
     if (now - lastSave > 30000) save();
   }
   requestAnimationFrame(frame);
@@ -404,7 +548,7 @@ function refreshScreen(now) { lastRefresh = now; refreshAll(); }
 requestAnimationFrame(frame);
 addEventListener('visibilitychange', () => {
   if (document.hidden) { save(); syncRemindersNow(); }
-  else if (life) { life.advanceTo(Date.now()); handleEvents(); refreshAll(); }
+  else if (box) { box.advanceTo(Date.now()); handleEvents(); refreshAll(); }
 });
 addEventListener('pagehide', () => { save(); syncRemindersNow(); });
 
@@ -428,11 +572,23 @@ function escape(s) { return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', 
 
 // for browser tests and debugging
 window.snailstory = {
-  get life() { return life; },
+  get box() { return box; },
+  get life() { return sel; },
+  get sel() { return sel; },
   get view() { return view; },
-  // Nudge the whole life forward, for looking at an old snail without waiting.
-  skip(days) { life.born -= days * DAY_MS; life.advanceTo(Date.now()); handleEvents(); refreshAll(); save(); },
-  entryFor, LIFE_DAYS, EGG_MS,
+  // Nudge the whole terrarium forward, for looking at old snails without
+  // waiting. Everything moves together, so the snails keep their ages apart.
+  skip(days) {
+    const d = days * DAY_MS;
+    box.born -= d;
+    for (const s2 of box.snails) s2.laidAt -= d;
+    box.advanceTo(Date.now());
+    handleEvents();
+    refreshAll();
+    save();
+  },
+  add(name) { return layEgg(name || 'Testsnigel'); },
+  entryFor, LIFE_DAYS, EGG_MS, SNAIL_MAX,
 };
 
 load();

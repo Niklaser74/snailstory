@@ -8,6 +8,9 @@ verklig tid** — den växer, kryper och sover medan appen är stängd. Den kan
 skalet med ett membran och väntar, precis som riktiga sniglar gör i månader när
 det behövs. Du förlorar växandet, aldrig snigeln. Bara ålderdomen tar den.
 
+Det får plats **tre sniglar** i terrariet. De delar vatten, mat, kalk och
+städning, men lever var sitt liv med egen ålder, eget skal och egen dagbok.
+
 Varje dygn skriver sig självt in i dagboken, en rad i taget:
 
 > **Dag 147.** 3,30 m avklarat. Sedan vilade den hela dagen, vilket är
@@ -34,7 +37,7 @@ till `main`.
 
 ```
 index.html      enda sidan: terrariet, behovsmätare, de fem knapparna, panelerna
-js/life.js      HELA spelet som tal: behov, dvala, växande, krypsträcka. Noll DOM
+js/life.js      HELA spelet som tal: Box (behoven, klockan) och Life (en snigel). Noll DOM
 js/diary.js     en dagbokspost per dygn, hämtad ur dygnets sparade siffror
 js/view.js      terrariet på canvas: rummet, fönstret, lådan, snigeln
 js/fmt.js       millimeter, dygn och år som en snigelskötare säger dem
@@ -59,6 +62,13 @@ båda vägarna och jämför.
 **Fyra behov, ett resultat.** Fukt, mat, kalk och renhet räknas ned var för sig
 och vägs ihop till en kvalitet som bara påverkar en sak: hur fort skalet växer
 mot fyra centimeter. Inget av dem kan döda.
+
+**Behoven tillhör lådan, inte snigeln.** Du dimmar lådan, ett salladsblad går
+till den som hittar det, bläckfiskbenet ligger där för alla. Därför räknas de
+ned lika fort oavsett hur många sniglar som bor där: en snigel till ska vara
+ett liv till att följa, inte tre gånger pysslet. `Box` äger de fyra behoven och
+klockan; varje `Life` äger sitt eget — storlek, krypsträcka, dvala, dagbok och
+sin död.
 
 **Dvalan är inte ett strafftillstånd.** När fukten eller maten bottnar sätts
 `asleep`, och då står allting stilla — behoven sjunker inte, smutsen växer inte,
@@ -112,6 +122,6 @@ relativa sökvägar, egen cache-prefix (`snailstory-`), egna `localStorage`-nyck
 
 - Speltesta på riktigt över några dygn och justera takten: fuktens och matens
   livslängd, hur snabbt skalet växer, hur ofta den kryper.
-- Ägg och avkomma: två spelares sniglar som blir föräldrar. Sniglar är
-  hermafroditer, så vem som helst kan para sig med vem som helst.
+- Ägg och avkomma mellan sniglarna i samma låda. Sniglar är hermafroditer, så
+  vilka två som helst kan bli föräldrar.
 - OG-bild och butikstexter.

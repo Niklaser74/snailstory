@@ -24,7 +24,7 @@ const rest = (path: string, init: RequestInit = {}) =>
   });
 
 type Sub = { endpoint: string; p256dh: string; auth: string };
-type Row = { kind: string; years: number; lang: string | null; name: string | null; subs: Sub[] };
+type Row = { kind: string; years: number; snail: string | null; lang: string | null; name: string | null; subs: Sub[] };
 
 // Comparison that does not leak the secret's length or its first differing byte.
 function sameSecret(a: string, b: string): boolean {
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     const dead = new Set<string>();
     for (const r of due) {
       const name = (r.name || '').trim() || fallbackName(r.lang);
-      const payload = { title: TITLE, body: body(r.kind, r.lang, name, r.years), url: GAME, tag: tagFor(r.kind, r.years) };
+      const payload = { title: TITLE, body: body(r.kind, r.lang, name, r.years), url: GAME, tag: tagFor(r.kind, r.years, r.snail) };
       for (const s of r.subs || []) {
         const status = await sendPush({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, vapid, SITE).catch(() => 0);
         if (status === 200 || status === 201) sent++;

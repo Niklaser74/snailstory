@@ -61,8 +61,7 @@ export class View {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.particles = [];
-    this.trailUntil = 0;          // the slime dries a minute after it stops moving
-    this.lastDistance = -1;
+    this.trails = new Map();      // snail seed -> { mm, until }: slime dries a minute after it stops
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.ro = new ResizeObserver(() => this.layout());
     this.ro.observe(canvas);
@@ -94,18 +93,22 @@ export class View {
   px(x) { return this.bx + x * this.k; }
   py(y) { return this.by + y * this.k; }
 
-  draw(life, now, tz) {
+  // The box, then everyone in it. Snails are drawn back to front by how far
+  // round the glass they are, so one crawling past another overlaps sensibly.
+  draw(box, now) {
     const ctx = this.ctx;
-    const hour = gardenHour(now, tz) + (new Date(now).getMinutes()) / 60;
-    const night = isNight(now, tz);
+    const hour = gardenHour(now, box.tz) + (new Date(now).getMinutes()) / 60;
+    const night = isNight(now, box.tz);
     ctx.clearRect(0, 0, this.cw, this.ch);
     this.room(hour, night);
-    this.glassBack(life);
-    this.soil(life);
-    this.furniture(life, now);
-    if (!life.hatched(now)) this.egg(now, life);
-    else this.snail(life, now);
-    this.glassFront(life, night);
+    this.glassBack(box);
+    this.soil(box);
+    this.furniture(box, now);
+    for (const s of box.snails) {
+      if (!s.hatched(now)) this.egg(now, s);
+      else this.snail(s, now);
+    }
+    this.glassFront(box, night);
     this.drawParticles(1 / 60);
   }
 
@@ -165,7 +168,7 @@ export class View {
   }
 
   // ---------- the box ----------
-  glassBack(life) {
+  glassBack(b) {
     const ctx = this.ctx;
     const inside = ctx.createLinearGradient(0, this.py(0), 0, this.py(BOX_H));
     inside.addColorStop(0, 'rgba(86,116,100,0.55)');
@@ -183,7 +186,7 @@ export class View {
     }
   }
 
-  soil(life) {
+  soil(b) {
     const ctx = this.ctx;
     const top = this.py(BOX_H - SOIL);
     const g = ctx.createLinearGradient(0, top, 0, this.py(BOX_H));
@@ -206,13 +209,13 @@ export class View {
   }
 
   // the leaf, the cuttlefish bone and the water bowl, all readable as meters
-  furniture(life, now) {
+  furniture(b, now) {
     const ctx = this.ctx;
     const k = this.k;
     const ground = this.py(BOX_H - SOIL);
 
     // the lettuce leaf shrinks as the food runs out
-    const f = life.food;
+    const f = b.food;
     if (f > 0.02) {
       const x = this.px(70), y = ground + k * 1.5;
       const w = k * 26 * (0.35 + 0.65 * f), h = k * 13 * (0.4 + 0.6 * f);
@@ -237,7 +240,7 @@ export class View {
     }
 
     // the cuttlefish bone: a pale oval half in the soil
-    const c = life.calcium;
+    const c = b.calcium;
     if (c > 0.02) {
       const x = this.px(225), y = ground + k * 3;
       ctx.save();
@@ -256,15 +259,15 @@ export class View {
     const x = this.px(160), y = ground + k * 2;
     ctx.fillStyle = '#c9b89c';
     ctx.beginPath(); ctx.ellipse(x, y, k * 14, k * 4.5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(90,160,210,${(0.25 + 0.55 * life.moisture).toFixed(2)})`;
-    ctx.beginPath(); ctx.ellipse(x, y - k * 0.6, k * 11 * (0.5 + 0.5 * life.moisture), k * 3 * (0.5 + 0.5 * life.moisture), 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(90,160,210,${(0.25 + 0.55 * b.moisture).toFixed(2)})`;
+    ctx.beginPath(); ctx.ellipse(x, y - k * 0.6, k * 11 * (0.5 + 0.5 * b.moisture), k * 3 * (0.5 + 0.5 * b.moisture), 0, 0, Math.PI * 2); ctx.fill();
   }
 
   // ---------- the animal ----------
   egg(now, life) {
     const ctx = this.ctx;
     const k = this.k;
-    const x = this.px(150), y = this.py(BOX_H - SOIL) + k * 4;
+    const x = this.px(70 + life.offset * 160), y = this.py(BOX_H - SOIL) + k * 4;
     const r = k * 7;
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
@@ -288,14 +291,19 @@ export class View {
     const k = this.k;
     const vs = this.visualSize(life);
     const mm = life.distanceAt(now);
-    if (mm !== this.lastDistance) { this.lastDistance = mm; this.trailUntil = now + 60000; }
-    // an empty shell does not cling to the glass: it ends up on the soil
-    const p = life.dead ? placeOnPath(PERIMETER * 0.12) : placeOnPath(mm);
+    // the trail is this snail's own, so two crawling at once do not blink
+    const seen = this.trails.get(life.seed);
+    if (!seen || mm !== seen.mm) this.trails.set(life.seed, { mm, until: now + 60000 });
+    const trailUntil = this.trails.get(life.seed).until;
+    // Where on the lap it is. The offset keeps three eggs laid the same evening
+    // from sitting in exactly one spot; an empty shell ends up on the soil.
+    const along = (mm + life.offset * PERIMETER) % PERIMETER;
+    const p = life.dead ? placeOnPath(PERIMETER * 0.12) : placeOnPath(along);
     const x = this.px(p.x), y = this.py(p.y);
     const angle = Math.atan2(p.nx, -p.ny);
 
     // the slime behind it, drying
-    const fade = Math.max(0, Math.min(1, (this.trailUntil - now) / 60000));
+    const fade = Math.max(0, Math.min(1, (trailUntil - now) / 60000));
     if (fade > 0 && mm > 2 && !life.dead) {
       ctx.save();
       ctx.strokeStyle = `rgba(190,255,150,${(0.5 * fade).toFixed(3)})`;
@@ -304,7 +312,7 @@ export class View {
       ctx.beginPath();
       const len = Math.min(mm, 150);
       for (let i = 0; i <= 14; i++) {
-        const q = placeOnPath(mm - (len * i) / 14);
+        const q = placeOnPath(along - (len * i) / 14);
         const qx = this.px(q.x), qy = this.py(q.y);
         if (i === 0) ctx.moveTo(qx, qy); else ctx.lineTo(qx, qy);
       }
@@ -363,13 +371,13 @@ export class View {
   }
 
   // ---------- the glass in front ----------
-  glassFront(life, night) {
+  glassFront(b, night) {
     const ctx = this.ctx;
     const k = this.k;
     const x = this.px(0), y = this.py(0);
     // condensation when it is damp
-    if (life.moisture > 0.45) {
-      ctx.fillStyle = `rgba(255,255,255,${(0.10 * (life.moisture - 0.45) / 0.55 + 0.05).toFixed(3)})`;
+    if (b.moisture > 0.45) {
+      ctx.fillStyle = `rgba(255,255,255,${(0.10 * (b.moisture - 0.45) / 0.55 + 0.05).toFixed(3)})`;
       for (let i = 0; i < 26; i++) {
         const a = ((i * 2654435761) % 1000) / 1000;
         const b = ((i * 48271) % 991) / 991;
@@ -377,8 +385,8 @@ export class View {
       }
     }
     // algae and smears when it has not been cleaned
-    if (life.grime > 0.25) {
-      const g = (life.grime - 0.25) / 0.75;
+    if (b.grime > 0.25) {
+      const g = (b.grime - 0.25) / 0.75;
       ctx.fillStyle = `rgba(90,130,60,${(0.3 * g).toFixed(3)})`;
       for (let i = 0; i < 18; i++) {
         const a = ((i * 1103515245) % 1000) / 1000;
@@ -454,6 +462,27 @@ export class View {
       t: 0, walking: false, retract: life.stalkRetraction(Date.now()),
       look: { shell: life.pattern, hat: 'none' },
     });
+  }
+
+  // A snail that has not hatched yet has no portrait, so its tab shows the egg.
+  static drawEggPortrait(canvas) {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    const w = canvas.clientWidth || 48;
+    const h = canvas.clientHeight || 36;
+    if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const r = Math.min(w, h) * 0.32;
+    const x = w / 2, y = h * 0.56;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(x, y + r * 0.95, r * 0.9, r * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.2, x, y, r * 1.3);
+    g.addColorStop(0, '#fffdf5'); g.addColorStop(1, '#e4dcc6');
+    ctx.fillStyle = g;
+    ctx.strokeStyle = '#cfc5aa';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(x, y, r * 0.8, r, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 }
 

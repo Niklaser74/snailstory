@@ -3,21 +3,34 @@
 // living whole lives in a few milliseconds.
 //   node test/life.test.mjs
 import assert from 'node:assert/strict';
-import { Life, DAY_MS, TICK_MS, LIFE_DAYS, SIZE_HATCH, SIZE_ADULT, SIZE_MAX, WAKE_AT, SEAL_AT, quality } from '../js/life.js';
+import { Box, Life, DAY_MS, TICK_MS, LIFE_DAYS, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
+  WAKE_AT, SEAL_AT, SNAIL_MAX, quality } from '../js/life.js';
 
 const T0 = Date.UTC(2026, 0, 5, 8, 0, 0);     // a Monday morning, fixed
 const TZ = -60;                                // Sweden in winter, frozen for the test
-const fresh = (extra = {}) => new Life({ seed: 12345, name: 'Gösta', born: T0, tz: TZ, ...extra });
+
+// A box with one snail in it, which is what most of these promises are about.
+function fresh(seed = 12345, name = 'Gösta') {
+  const b = new Box({ born: T0, tz: TZ });
+  b.add({ seed, name, now: T0 });
+  return b;
+}
+const one = (b) => b.snails[0];
 
 let failed = 0;
 function test(name, fn) {
   try { fn(); console.log(`ok   ${name}`); } catch (e) { failed++; console.log(`FAIL ${name}\n     ${e.message}`); }
 }
-const fields = (l) => ({
-  tick: l.tick, size: +l.size.toFixed(9), distance: +l.distance.toFixed(9),
-  moisture: +l.moisture.toFixed(9), food: +l.food.toFixed(9), calcium: +l.calcium.toFixed(9),
-  grime: +l.grime.toFixed(9), asleep: l.asleep, sealedTicks: l.sealedTicks, days: l.days.length,
-  adult: l.adult, dead: l.dead,
+// everything that must come out the same however the app got there
+const fields = (b) => ({
+  tick: b.tick,
+  moisture: +b.moisture.toFixed(9), food: +b.food.toFixed(9),
+  calcium: +b.calcium.toFixed(9), grime: +b.grime.toFixed(9),
+  snails: b.snails.map((s) => ({
+    tick: s.tick, size: +s.size.toFixed(9), distance: +s.distance.toFixed(9),
+    asleep: s.asleep, sealedTicks: s.sealedTicks, days: s.days.length,
+    adult: s.adult, dead: s.dead,
+  })),
 });
 
 test('the same snail is the same snail however the app got there', () => {
@@ -31,105 +44,112 @@ test('the same snail is the same snail however the app got there', () => {
 });
 
 test('a forgotten snail seals up and is still alive three years later', () => {
-  const l = fresh();
-  l.advanceTo(T0 + 3 * DAY_MS);
-  assert.equal(l.asleep, true, 'sealed within three days of neglect');
-  l.advanceTo(T0 + (LIFE_DAYS - 1) * DAY_MS);
-  assert.equal(l.dead, false, 'still alive the day before its third birthday');
-  assert.equal(l.asleep, true);
-  assert.ok(l.size > SIZE_HATCH, 'it grew a little before sealing');
-  assert.ok(l.size < 10, 'but nothing like a cared-for snail');
-  l.advanceTo(T0 + LIFE_DAYS * DAY_MS);
-  assert.equal(l.dead, true, 'old age is the only thing that ends it');
+  const b = fresh();
+  b.advanceTo(T0 + 3 * DAY_MS);
+  assert.equal(one(b).asleep, true, 'sealed within three days of neglect');
+  b.advanceTo(T0 + (LIFE_DAYS - 1) * DAY_MS);
+  assert.equal(one(b).dead, false, 'still alive the day before its third birthday');
+  assert.equal(one(b).asleep, true);
+  assert.ok(one(b).size > SIZE_HATCH, 'it grew a little before sealing');
+  assert.ok(one(b).size < 10, 'but nothing like a cared-for snail');
+  b.advanceTo(T0 + LIFE_DAYS * DAY_MS);
+  assert.equal(one(b).dead, true, 'old age is the only thing that ends it');
 });
 
-test('sealed in, nothing moves: not the needs, not the shell, not the odometer', () => {
-  const l = fresh();
-  l.advanceTo(T0 + 5 * DAY_MS);
-  assert.equal(l.asleep, true);
-  const before = fields(l);
-  l.advanceTo(T0 + 105 * DAY_MS);
-  assert.equal(+l.moisture.toFixed(9), before.moisture, 'moisture frozen');
-  assert.equal(+l.food.toFixed(9), before.food, 'food frozen');
-  assert.equal(+l.grime.toFixed(9), before.grime, 'the box stops getting dirty');
-  assert.equal(+l.size.toFixed(9), before.size, 'no growth while sealed');
-  assert.equal(+l.distance.toFixed(9), before.distance, 'no crawling while sealed');
-  assert.ok(l.sealedTicks > before.sealedTicks, 'but the sleep is counted');
+test('sealed in, the snail freezes; the box around it goes on drying out', () => {
+  const b = fresh();
+  b.advanceTo(T0 + 5 * DAY_MS);
+  const s = one(b);
+  assert.equal(s.asleep, true);
+  const size = s.size, dist = s.distance, slept = s.sealedTicks;
+  b.advanceTo(T0 + 105 * DAY_MS);
+  assert.equal(+s.size.toFixed(9), +size.toFixed(9), 'no growth while sealed');
+  assert.equal(+s.distance.toFixed(9), +dist.toFixed(9), 'no crawling while sealed');
+  assert.ok(s.sealedTicks > slept, 'but the sleep is counted');
+  // the needs belong to the box, and evaporation does not care who is awake
+  assert.equal(b.moisture, 0, 'the box dries all the way out');
+  assert.equal(b.food, 0);
+  assert.equal(b.grime, 1, 'and gets as dirty as it gets');
 });
 
 test('water and food wake it, one alone does not', () => {
-  const l = fresh();
-  l.advanceTo(T0 + 5 * DAY_MS);
-  assert.equal(l.asleep, true);
+  const b = fresh();
+  b.advanceTo(T0 + 5 * DAY_MS);
+  assert.equal(one(b).asleep, true);
   const t = T0 + 5 * DAY_MS + 1000;
-  l.mist(t);
-  assert.equal(l.asleep, true, 'a dry snail with no food stays in');
-  assert.ok(l.moisture >= WAKE_AT);
-  l.feed(t + 1000, 'lettuce');
-  assert.equal(l.asleep, false, 'both together bring it out');
+  b.mist(t);
+  assert.equal(one(b).asleep, true, 'a dry snail with no food stays in');
+  assert.ok(b.moisture >= WAKE_AT);
+  b.feed(t + 1000, 'lettuce');
+  assert.equal(one(b).asleep, false, 'both together bring it out');
 });
 
 test('a well kept snail grows up, fills its shell and dies of old age', () => {
-  const l = fresh();
+  const b = fresh();
   const end = T0 + LIFE_DAYS * DAY_MS;
   // looked after twice a day for three years, which nobody will do
   for (let t = T0 + 6 * 3600000; t < end; t += 12 * 3600000) {
-    l.mist(t); l.feed(t, 'dandelion'); l.chalk(t); l.clean(t);
+    b.mist(t); b.feed(t, 'dandelion'); b.chalk(t); b.clean(t);
   }
-  l.advanceTo(end);
-  assert.equal(l.asleep, false, 'never had to seal up');
-  assert.equal(l.adult, true);
-  assert.ok(l.size >= 38, `shell reached only ${l.size.toFixed(1)} mm`);
-  assert.ok(l.size < SIZE_MAX, 'and never passes the limit');
-  assert.ok(l.distance > 1000000, `crawled only ${(l.distance / 1000).toFixed(0)} m`);
-  assert.equal(l.dead, true);
+  b.advanceTo(end);
+  const s = one(b);
+  assert.equal(s.asleep, false, 'never had to seal up');
+  assert.equal(s.adult, true);
+  assert.ok(s.size >= 38, `shell reached only ${s.size.toFixed(1)} mm`);
+  assert.ok(s.size < SIZE_MAX, 'and never passes the limit');
+  assert.ok(s.distance > 1000000, `crawled only ${(s.distance / 1000).toFixed(0)} m`);
+  assert.equal(s.dead, true);
   for (const id of ['hatched', 'grown', 'threeYears', 'kilometre', 'hundredMeals']) {
-    assert.ok(l.badges.includes(id), 'missing badge ' + id);
+    assert.ok(b.badges.includes(id), 'missing badge ' + id);
   }
 });
 
 test('the shell lip comes in before the first summer under decent care', () => {
-  const l = fresh();
-  for (let t = T0 + 6 * 3600000; t < T0 + 200 * DAY_MS; t += 18 * 3600000) { l.mist(t); l.feed(t, 'carrot'); l.chalk(t); }
-  assert.equal(l.adult, true);
-  const grown = l.days.find((d) => d.size >= SIZE_ADULT);
+  const b = fresh();
+  for (let t = T0 + 6 * 3600000; t < T0 + 200 * DAY_MS; t += 18 * 3600000) { b.mist(t); b.feed(t, 'carrot'); b.chalk(t); }
+  assert.equal(one(b).adult, true);
+  const grown = one(b).days.find((d) => d.size >= SIZE_ADULT);
   assert.ok(grown && grown.d < 200, 'grown up within two hundred days');
 });
 
 test('nothing ever goes backwards', () => {
-  const l = fresh();
+  const b = fresh();
   let size = 0, dist = 0, age = -1, day = -1;
   for (let t = T0; t < T0 + 400 * DAY_MS; t += 7 * 3600000) {
-    if (t % (3 * DAY_MS) < 7 * 3600000) { l.mist(t); l.feed(t, 'apple'); }
-    l.advanceTo(t);
-    assert.ok(l.size >= size, 'shell shrank');
-    assert.ok(l.distance >= dist, 'odometer ran backwards');
-    assert.ok(l.ageMs(t) > age, 'age stood still');
-    assert.ok(l.dayIndex(t) >= day);
-    size = l.size; dist = l.distance; age = l.ageMs(t); day = l.dayIndex(t);
+    if (t % (3 * DAY_MS) < 7 * 3600000) { b.mist(t); b.feed(t, 'apple'); }
+    b.advanceTo(t);
+    const s = one(b);
+    assert.ok(s.size >= size, 'shell shrank');
+    assert.ok(s.distance >= dist, 'odometer ran backwards');
+    assert.ok(s.ageMs(t) > age, 'age stood still');
+    assert.ok(s.dayIndex(t) >= day);
+    size = s.size; dist = s.distance; age = s.ageMs(t); day = s.dayIndex(t);
   }
-  assert.ok(l.whorls(T0 + 400 * DAY_MS) >= 1 && l.whorls(T0 + 400 * DAY_MS) <= 5);
+  assert.ok(one(b).whorls(T0 + 400 * DAY_MS) >= 1 && one(b).whorls(T0 + 400 * DAY_MS) <= 5);
 });
 
 test('one diary record per day lived, and none for the future', () => {
-  const l = fresh();
-  l.advanceTo(T0 + 30 * DAY_MS + TICK_MS);
-  assert.equal(l.days.length, 30, `expected 30 closed days, got ${l.days.length}`);
-  assert.deepEqual(l.days.map((d) => d.d), [...Array(30).keys()]);
-  assert.equal(l.today.d, 30);
+  const b = fresh();
+  b.advanceTo(T0 + 30 * DAY_MS + TICK_MS);
+  const s = one(b);
+  assert.equal(s.days.length, 30, `expected 30 closed days, got ${s.days.length}`);
+  assert.deepEqual(s.days.map((d) => d.d), [...Array(30).keys()]);
+  assert.equal(s.today.d, 30);
 });
 
-test('saving and loading gives back the same snail, and it keeps living the same', () => {
+test('saving and loading gives back the same terrarium, and it keeps living the same', () => {
   const a = fresh();
-  for (let t = T0; t < T0 + 20 * DAY_MS; t += 9 * 3600000) { l2(a, t); }
-  const b = Life.fromJSON(JSON.parse(JSON.stringify(a.toJSON())));
+  a.add({ seed: 777, name: 'Majken', now: T0 + 2 * DAY_MS });
+  for (let t = T0; t < T0 + 20 * DAY_MS; t += 9 * 3600000) { a.mist(t); a.feed(t, 'oats'); }
+  const b = Box.fromJSON(JSON.parse(JSON.stringify(a.toJSON())));
   assert.deepEqual(fields(b), fields(a));
-  assert.equal(b.color, a.color, 'the shell colour comes from the seed, not the save');
+  assert.equal(one(b).color, one(a).color, 'the shell colour comes from the seed, not the save');
+  assert.equal(b.snails[1].name, 'Majken');
+  assert.ok(b.snails.every((s) => s.box === b), 'every snail knows which box it is in');
   const end = T0 + 40 * DAY_MS;
   a.advanceTo(end); b.advanceTo(end);
   assert.deepEqual(fields(b), fields(a));
 });
-function l2(l, t) { l.mist(t); l.feed(t, 'oats'); }
 
 test('growth quality reads the four needs in the right direction', () => {
   const base = { moisture: 1, food: 1, calcium: 1, grime: 0 };
@@ -142,114 +162,222 @@ test('growth quality reads the four needs in the right direction', () => {
   assert.ok(SEAL_AT < WAKE_AT, 'it needs more to come out than it took to go in');
 });
 
-test('three years replays in well under a second', () => {
+test('three years replays in well under a second, with a full box', () => {
+  const b = fresh();
+  b.add({ seed: 777, name: 'Majken', now: T0 });
+  b.add({ seed: 999, name: 'Alva', now: T0 });
   const t = Date.now();
-  const l = fresh();
-  l.advanceTo(T0 + LIFE_DAYS * DAY_MS);
+  b.advanceTo(T0 + LIFE_DAYS * DAY_MS);
   const ms = Date.now() - t;
-  assert.ok(l.dead);
+  assert.ok(b.snails.every((s) => s.dead));
   assert.ok(ms < 1500, `took ${ms} ms`);
-  console.log(`     (${(LIFE_DAYS * DAY_MS / TICK_MS).toLocaleString('sv-SE')} ticks in ${ms} ms)`);
+  console.log(`     (${(LIFE_DAYS * DAY_MS / TICK_MS).toLocaleString('sv-SE')} ticks × 3 snails in ${ms} ms)`);
+});
+
+// ---------- three to a terrarium ----------
+
+test('the box holds three, and says no to a fourth', () => {
+  const b = fresh();
+  assert.equal(b.room, SNAIL_MAX - 1);
+  assert.ok(b.add({ seed: 2, name: 'Majken', now: T0 }));
+  assert.ok(b.add({ seed: 3, name: 'Alva', now: T0 }));
+  assert.equal(b.hasRoom(), false);
+  assert.equal(b.add({ seed: 4, name: 'För mycket', now: T0 }), null, 'a fourth is refused');
+  assert.equal(b.snails.length, SNAIL_MAX);
+  b.checkBadges(T0);
+  assert.ok(b.badges.includes('full'), 'a full box is worth a badge');
+});
+
+test('one misting waters everyone, so three snails are not three times the work', () => {
+  const b = fresh();
+  b.add({ seed: 2, name: 'Majken', now: T0 });
+  b.add({ seed: 3, name: 'Alva', now: T0 });
+  b.advanceTo(T0 + 4 * DAY_MS);
+  assert.ok(b.snails.every((s) => s.asleep), 'a neglected box seals all of them');
+  const t = T0 + 4 * DAY_MS + 1000;
+  b.mist(t); b.feed(t, 'lettuce');
+  assert.ok(b.snails.every((s) => !s.asleep), 'one round of care brings all three out');
+  // and the box dries at the same rate whoever is in it
+  const alone = fresh();
+  alone.mist(t); alone.feed(t, 'lettuce');
+  alone.advanceTo(t + DAY_MS);
+  b.advanceTo(t + DAY_MS);
+  assert.equal(+b.moisture.toFixed(9), +alone.moisture.toFixed(9), 'three snails do not drink faster');
+});
+
+test('a snail added later keeps its own age, diary and death', () => {
+  const b = fresh();
+  const late = b.add({ seed: 4242, name: 'Sent', now: T0 + 100 * DAY_MS });
+  b.advanceTo(T0 + 130 * DAY_MS);
+  const now = T0 + 130 * DAY_MS;
+  assert.ok(Math.abs(one(b).ageDays(now) - 130) < 0.01, 'the first is 130 days old');
+  assert.ok(Math.abs(late.ageDays(now) - 30) < 0.01, 'the late one is 30');
+  assert.equal(late.days.length, 30, 'and has thirty days of diary, not a hundred and thirty');
+  assert.ok(late.dieAt > one(b).dieAt, 'and outlives it by the same hundred days');
+  assert.ok(late.bornTick > 0, 'it starts where it was put on the box grid');
+});
+
+test('one snail reaching the end leaves the others alone', () => {
+  const b = fresh();
+  const late = b.add({ seed: 4242, name: 'Sent', now: T0 + 200 * DAY_MS });
+  b.advanceTo(T0 + LIFE_DAYS * DAY_MS + TICK_MS);
+  assert.equal(one(b).dead, true, 'the elder is gone');
+  assert.equal(late.dead, false, 'the younger is not');
+  const events = b.takeEvents();
+  const died = events.filter((e) => e.type === 'died');
+  assert.equal(died.length, 1, 'one death, not two');
+  assert.equal(died[0].snail, one(b), 'and it says which snail it was');
+  b.remove(one(b));
+  assert.equal(b.snails.length, 1);
+  assert.equal(b.hasRoom(), true, 'which leaves room for another egg');
+  b.advanceTo(T0 + LIFE_DAYS * DAY_MS + 2 * TICK_MS);   // must not throw with one gone
+});
+
+test('a save from before the terrarium becomes a box with one snail in it', () => {
+  // exactly the shape the old single-snail save had
+  const legacy = {
+    v: 1, seed: 12345, name: 'Gösta', born: T0, tz: TZ, tick: 288,
+    moisture: 0.4, food: 0.3, calcium: 0.9, grime: 0.2,
+    size: 9.5, distance: 4321, asleep: false, sealedTicks: 12, awakeTicks: 200, activeTicks: 40,
+    meals: { lettuce: 3 }, mists: 4, cleans: 1, chalks: 1, pets: 7, petAt: 0, adult: false, dead: false,
+    days: [], today: { d: 1, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, grew: false, ate: null, asleep: false, size: 9.5, moisture: 0.4, grime: 0.2 },
+    badges: ['laid', 'hatched'],
+  };
+  const b = Box.fromLegacy(legacy);
+  assert.equal(b.snails.length, 1);
+  assert.equal(b.moisture, 0.4, 'the box took over the needs');
+  assert.equal(b.meals.lettuce, 3);
+  assert.deepEqual(b.badges, ['laid', 'hatched']);
+  const s = one(b);
+  assert.equal(s.name, 'Gösta');
+  assert.equal(s.size, 9.5, 'and the snail kept everything that was its own');
+  assert.equal(s.distance, 4321);
+  assert.equal(s.pets, 7);
+  assert.equal(s.laidAt, T0, 'its birthday did not move');
+  assert.equal(s.bornTick, 0);
+  assert.equal(s.box, b);
+  // and it goes on living from exactly where it was
+  b.advanceTo(T0 + 2 * DAY_MS);
+  assert.ok(s.size > 9.5);
 });
 
 test('a snail that wakes up unfolds its stalks, and a poke folds them again', () => {
-  const l = fresh();
+  const b = fresh();
   const t = T0 + 5 * DAY_MS;
-  l.advanceTo(t);
-  assert.equal(l.asleep, true, 'a forgotten snail is sealed in');
-  assert.equal(l.stalkRetraction(t), 1, 'nothing is out while it is sealed');
+  b.advanceTo(t);
+  const s = one(b);
+  assert.equal(s.asleep, true, 'a forgotten snail is sealed in');
+  assert.equal(s.stalkRetraction(t), 1, 'nothing is out while it is sealed');
 
-  l.mist(t); l.feed(t, 'cucumber');
-  assert.equal(l.asleep, false, 'water and food wake it');
-  assert.equal(l.wokeAt, t, 'and the moment is remembered');
-  assert.equal(l.stalkRetraction(t), 1, 'the stalks start where the membrane left them');
-  const mid = l.stalkRetraction(t + 4000);
+  b.mist(t); b.feed(t, 'cucumber');
+  assert.equal(s.asleep, false, 'water and food wake it');
+  assert.equal(s.wokeAt, t, 'and the moment is remembered');
+  assert.equal(s.stalkRetraction(t), 1, 'the stalks start where the membrane left them');
+  const mid = s.stalkRetraction(t + 4000);
   assert.ok(mid > 0.2 && mid < 0.8, `half way out, got ${mid}`);
-  assert.equal(l.stalkRetraction(t + 9000), 0, 'fully out after the stretch');
-  assert.equal(l.shy(t + 4000), true, 'it does not crawl off mid-stretch');
-  assert.equal(l.shy(t + 9000), false);
+  assert.equal(s.stalkRetraction(t + 9000), 0, 'fully out after the stretch');
+  assert.equal(s.shy(t + 4000), true, 'it does not crawl off mid-stretch');
+  assert.equal(s.shy(t + 9000), false);
 
   // touched while still unfolding: all the way back in, not somewhere between
-  l.pet(t + 4000);
-  assert.equal(l.stalkRetraction(t + 4250), 1, 'a poke wins over a stretch');
-  assert.equal(l.stalkRetraction(t + 20000), 0, 'and it recovers from that too');
+  s.pet(t + 4000);
+  assert.equal(s.stalkRetraction(t + 4250), 1, 'a poke wins over a stretch');
+  assert.equal(s.stalkRetraction(t + 20000), 0, 'and it recovers from that too');
 });
 
 test('waking is remembered across a save, so the stretch is not restarted', () => {
-  const l = fresh();
+  const b = fresh();
   const t = T0 + 5 * DAY_MS;
-  l.advanceTo(t);
-  l.mist(t); l.feed(t, 'cucumber');
-  const back = Life.fromJSON(JSON.parse(JSON.stringify(l.toJSON())));
-  assert.equal(back.wokeAt, l.wokeAt);
-  assert.equal(back.stalkRetraction(t + 4000), l.stalkRetraction(t + 4000));
+  b.advanceTo(t);
+  b.mist(t); b.feed(t, 'cucumber');
+  const back = Box.fromJSON(JSON.parse(JSON.stringify(b.toJSON())));
+  assert.equal(one(back).wokeAt, one(b).wokeAt);
+  assert.equal(one(back).stalkRetraction(t + 4000), one(b).stalkRetraction(t + 4000));
 });
 
 // ---------- what the server is told to remind you of ----------
 
 test('the seal forecast is the simulation, not a guess', () => {
-  const l = fresh();
-  l.advanceTo(T0 + 3600000);
-  const at = l.forecastSeal(T0 + 3600000);
-  assert.ok(at, 'a neglected snail has a sealing time');
+  const b = fresh();
+  b.advanceTo(T0 + 3600000);
+  const at = b.forecastSeal(T0 + 3600000);
+  assert.ok(at, 'a neglected box has a sealing time');
   const before = fresh();
   before.advanceTo(at - TICK_MS - 1);
-  assert.equal(before.asleep, false, 'still out one tick earlier');
+  assert.equal(one(before).asleep, false, 'still out one tick earlier');
   const after = fresh();
   after.advanceTo(at);
-  assert.equal(after.asleep, true, 'sealed in exactly when the forecast said');
+  assert.equal(one(after).asleep, true, 'sealed in exactly when the forecast said');
 });
 
 test('looking after it pushes the sealing time away', () => {
-  const l = fresh();
+  const b = fresh();
   const t = T0 + 3600000;
-  const dry = l.forecastSeal(t);
-  l.mist(t); l.feed(t, 'cucumber');
-  const wet = l.forecastSeal(t);
+  b.advanceTo(t);
+  const dry = b.forecastSeal(t);
+  b.mist(t); b.feed(t, 'cucumber');
+  const wet = b.forecastSeal(t);
   assert.ok(wet > dry, 'water and food buy time');
   assert.ok(wet - t > 24 * 3600000, 'and at least a day of it');
 });
 
-test('a sealed snail has nothing to forecast, a dead one has nothing at all', () => {
-  const l = fresh();
-  l.advanceTo(T0 + 5 * DAY_MS);
-  assert.equal(l.asleep, true);
-  assert.equal(l.forecastSeal(T0 + 5 * DAY_MS), null);
-  assert.ok(!l.schedule(T0 + 5 * DAY_MS).some((r) => r.kind === 'sealed'), 'no sealing row while sealed');
-  l.advanceTo(T0 + LIFE_DAYS * DAY_MS);
-  assert.deepEqual(l.schedule(T0 + LIFE_DAYS * DAY_MS), [], 'nothing to say after the end');
+test('a sealed box has nothing to forecast, an empty one has nothing at all', () => {
+  const b = fresh();
+  b.advanceTo(T0 + 5 * DAY_MS);
+  assert.equal(one(b).asleep, true);
+  assert.equal(b.forecastSeal(T0 + 5 * DAY_MS), null);
+  assert.ok(!b.schedule(T0 + 5 * DAY_MS).some((r) => r.kind === 'sealed'), 'no sealing row while sealed');
+  b.advanceTo(T0 + LIFE_DAYS * DAY_MS);
+  b.remove(one(b));
+  assert.deepEqual(b.schedule(T0 + LIFE_DAYS * DAY_MS), [], 'nothing to say about an empty box');
 });
 
 test('the schedule covers the whole life, in order, never in the past', () => {
-  const l = fresh();
+  const b = fresh();
   const now = T0 + 1000;
-  const s = l.schedule(now);
+  const s = b.schedule(now);
   const kinds = s.map((r) => r.kind);
   for (const k of ['hatch', 'sealed', 'death']) assert.ok(kinds.includes(k), 'missing ' + k);
   assert.deepEqual(s.filter((r) => r.kind === 'birthday').map((r) => r.years), [1, 2], 'both birthdays; the third is the end');
-  for (const r of s) {
-    assert.ok(r.at > now, r.kind + ' is in the past');
-    assert.ok(r.at <= l.dieAt, r.kind + ' falls after the snail is gone');
-  }
+  for (const r of s) assert.ok(r.at > now, r.kind + ' is in the past');
   for (let i = 1; i < s.length; i++) assert.ok(s[i].at >= s[i - 1].at, 'out of order');
-  assert.ok(s.length <= 10, 'the server takes at most ten');
+});
+
+test('three snails do not collide in the schedule', () => {
+  const b = fresh(11, 'En');
+  b.add({ seed: 22, name: 'Två', now: T0 + 40 * DAY_MS });
+  b.add({ seed: 33, name: 'Tre', now: T0 + 80 * DAY_MS });
+  const now = T0 + 80 * DAY_MS + 1000;
+  b.advanceTo(now);
+  b.mist(now); b.feed(now, 'lettuce');       // a box that has just been seen to
+  const rows = b.schedule(now);
+  // every row says which snail it is about, except nothing; the box seals as one
+  assert.equal(rows.filter((r) => r.kind === 'sealed').length, 1, 'one box, one sealing');
+  for (const r of rows) assert.ok(r.snail, r.kind + ' has no snail');
+  // the key the server uses is (kind, years, snail): it must be unique per row
+  const keys = rows.map((r) => [r.kind, r.years || 0, (r.snail.seed >>> 0).toString(36)].join('|'));
+  assert.equal(new Set(keys).size, keys.length, 'two reminders would overwrite each other');
+  assert.equal(rows.filter((r) => r.kind === 'birthday').length, 6, 'two birthdays each');
+  assert.equal(rows.filter((r) => r.kind === 'death').length, 3);
+  assert.ok(rows.length <= 16, 'and the whole lot fits in one schedule');
+  for (let i = 1; i < rows.length; i++) assert.ok(rows[i].at >= rows[i - 1].at, 'soonest first');
 });
 
 test('a hatched snail is not told to announce its hatching again', () => {
-  const l = fresh();
+  const b = fresh();
   const now = T0 + 10 * 60000;
-  l.advanceTo(now);
-  assert.ok(!l.schedule(now).some((r) => r.kind === 'hatch'));
-  assert.ok(l.schedule(now).some((r) => r.kind === 'birthday'));
+  b.advanceTo(now);
+  assert.ok(!b.schedule(now).some((r) => r.kind === 'hatch'));
+  assert.ok(b.schedule(now).some((r) => r.kind === 'birthday'));
 });
 
-test('forecasting does not disturb the snail it forecasts for', () => {
-  const l = fresh();
-  l.advanceTo(T0 + 6 * 3600000);
-  const before = fields(l);
-  l.forecastSeal(T0 + 6 * 3600000);
-  l.schedule(T0 + 6 * 3600000);
-  assert.deepEqual(fields(l), before, 'the throwaway copy must not write back');
+test('forecasting does not disturb the box it forecasts for', () => {
+  const b = fresh();
+  b.advanceTo(T0 + 6 * 3600000);
+  const before = fields(b);
+  b.forecastSeal(T0 + 6 * 3600000);
+  b.schedule(T0 + 6 * 3600000);
+  assert.deepEqual(fields(b), before, 'the throwaway copy must not write back');
 });
 
 if (failed) { console.log(`${failed} failed`); process.exit(1); }

@@ -3,7 +3,7 @@
 // and three months of entries do not repeat themselves into wallpaper.
 //   node test/diary.test.mjs
 import assert from 'node:assert/strict';
-import { Life, DAY_MS, LIFE_DAYS } from '../js/life.js';
+import { Box, DAY_MS, LIFE_DAYS } from '../js/life.js';
 import { entryFor, diaryFor, DIARY_KEYS } from '../js/diary.js';
 import { t, keysOf } from '../js/i18n.js';
 
@@ -20,14 +20,22 @@ function render(l) {
   if (p.food && String(p.food).startsWith('food.')) p.food = t(p.food);
   return t(l.key, p);
 }
+// The diary belongs to one snail, so these build a box and read the snail in it.
 function cared(days) {
-  const l = new Life({ seed: 777, name: 'Majken', born: T0, tz: TZ });
+  const b = new Box({ born: T0, tz: TZ });
+  const l = b.add({ seed: 777, name: 'Majken', now: T0 });
   for (let x = T0 + 6 * 3600000; x < T0 + days * DAY_MS; x += 14 * 3600000) {
-    l.mist(x); l.feed(x, ['lettuce', 'cucumber', 'carrot', 'dandelion', 'apple', 'oats'][(x / 3600000 | 0) % 6]);
-    if (x % (4 * DAY_MS) < 14 * 3600000) { l.clean(x); l.chalk(x); }
+    b.mist(x); b.feed(x, ['lettuce', 'cucumber', 'carrot', 'dandelion', 'apple', 'oats'][(x / 3600000 | 0) % 6]);
+    if (x % (4 * DAY_MS) < 14 * 3600000) { b.clean(x); b.chalk(x); }
     if (x % (3 * DAY_MS) < 14 * 3600000) l.pet(x);
   }
-  l.advanceTo(T0 + days * DAY_MS);
+  b.advanceTo(T0 + days * DAY_MS);
+  return l;
+}
+function neglected(days) {
+  const b = new Box({ born: T0, tz: TZ });
+  const l = b.add({ seed: 4, name: 'Rune', now: T0 });
+  b.advanceTo(T0 + days * DAY_MS);
   return l;
 }
 
@@ -56,7 +64,7 @@ test('the same day always reads the same', () => {
   const l = cared(40);
   const rec = l.days[17];
   assert.deepEqual(entryFor(l, rec, 'sv'), entryFor(l, rec, 'sv'));
-  const twin = Life.fromJSON(JSON.parse(JSON.stringify(l.toJSON())));
+  const twin = Box.fromJSON(JSON.parse(JSON.stringify(l.box.toJSON()))).snails[0];
   assert.deepEqual(entryFor(twin, twin.days[17], 'sv'), entryFor(l, rec, 'sv'));
 });
 
@@ -69,8 +77,7 @@ test('a hundred days do not read like one day a hundred times', () => {
 });
 
 test('a neglected snail gets a quiet diary, not an empty one', () => {
-  const l = new Life({ seed: 4, name: 'Rune', born: T0, tz: TZ });
-  l.advanceTo(T0 + 60 * DAY_MS);
+  const l = neglected(60);
   const entries = diaryFor(l, 'sv');
   assert.equal(entries.length, 60);
   for (const e of entries) assert.ok(e.lines.length >= 1);
