@@ -5,7 +5,7 @@ Copies from [Niklaser74/snailmageddon](https://github.com/Niklaser74/snailmagedd
 effects and the deterministic RNG — without a build step or a runtime
 dependency on the game's deployment.
 
-- Source commit: `f0ae184fb6ba0ec1d6b2b2538bbbcd0902e00628` (synced 2026-09-13)
+- Source commit: `2c7c8ac4d9dea74b58ac37f82fcf8cac93718758` (synced 2026-09-13)
 - Files: snails.js, cosmetics.js, themes.js, audio.js, rng.js
 - Import graph: snails.js → cosmetics.js; themes.js, audio.js and rng.js stand alone. Nothing here touches the network.
 
