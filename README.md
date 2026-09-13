@@ -80,6 +80,12 @@ på ungefär en meter, och positionen är `distance mod omkrets`. En meter på
 mätaren är ett varv längs golv, glas, tak och tillbaka. Ingen position att spara
 och ingenting som kan hamna ur fas med simuleringen.
 
+**Sniglar som möts kryper på varandra.** Alla kryper åt samma håll runt glaset,
+så den som kommer bakifrån är den som klättrar: i en klunga behåller den
+främsta glaset och de andra åker upp på skalet framför. Regeln är en ren
+funktion (`stackLayout`) och testas för sig — varvet runt nollpunkten är det
+som annars går sönder utan att någon märker det.
+
 **Klappar man den drar den in ögonstjälkarna.** Stjälkarna åker in på en
 fjärdedels sekund och kommer tillbaka ut under fem, och snigeln sitter still
 lite längre än så. Indragningen är en parameter i seriens `drawSnail`, inte

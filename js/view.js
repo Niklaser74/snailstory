@@ -56,6 +56,48 @@ function corner(cx, cy, a0, da) {
   return { x: cx - nx * CORNER, y: cy - ny * CORNER, nx, ny };
 }
 
+// Snails that meet on the glass climb over each other rather than passing
+// through, which is what real ones do. Everyone crawls the same way round, so
+// the one coming up from behind is the one that climbs: within a huddle the
+// snail furthest ahead keeps the glass and the others ride up its shell in
+// order. Pure, and tested in test/rules.test.mjs — the wrap-around is the part
+// that would otherwise break in silence.
+//
+//   items: [{ id, along, height, reach }]  along in box mm, the rest in mm
+//   returns the same ids with { lift, riding }, carriers before riders, so
+//   drawing them in order puts the top of the pile on top.
+export function stackLayout(items, perimeter = PERIMETER) {
+  const n = items.length;
+  if (n === 0) return [];
+  if (n === 1) return [{ ...items[0], lift: 0, riding: false }];
+  const ring = items.map((it) => ({ ...it, lift: 0, riding: false }))
+    .sort((a, b) => a.along - b.along);
+
+  // Rotate so the widest gap sits at the seam; then no huddle straddles it and
+  // the rest is a plain walk along a line.
+  let cut = 0, widest = -1;
+  for (let i = 0; i < n; i++) {
+    const next = ring[(i + 1) % n];
+    const gap = ((next.along - ring[i].along) + perimeter) % perimeter;
+    if (gap > widest) { widest = gap; cut = (i + 1) % n; }
+  }
+  const line = ring.slice(cut).concat(ring.slice(0, cut));
+
+  // Walk from the front of the queue backwards: each snail close enough behind
+  // the one ahead ends up on its shell, and a third behind that one rides the
+  // pile.
+  for (let i = line.length - 2; i >= 0; i--) {
+    const ahead = line[i + 1];
+    const gap = ((ahead.along - line[i].along) + perimeter) % perimeter;
+    const touching = gap < (line[i].reach + ahead.reach) * 0.5;
+    if (touching) {
+      line[i].lift = ahead.lift + ahead.height;
+      line[i].riding = true;
+    }
+  }
+  return line.sort((a, b) => a.lift - b.lift || a.along - b.along);
+}
+
 export class View {
   constructor(canvas) {
     this.canvas = canvas;
@@ -104,10 +146,8 @@ export class View {
     this.glassBack(box);
     this.soil(box);
     this.furniture(box, now);
-    for (const s of box.snails) {
-      if (!s.hatched(now)) this.egg(now, s);
-      else this.snail(s, now);
-    }
+    for (const s of box.snails) if (!s.hatched(now)) this.egg(now, s);
+    for (const r of this.pile(box, now)) this.snail(r.life, now, r);
     this.glassFront(box, night);
     this.drawParticles(1 / 60);
   }
@@ -281,12 +321,39 @@ export class View {
     ctx.restore();
   }
 
+  // Everyone's place on the lap, with the pile worked out. A dead shell lies on
+  // the soil and is not part of it.
+  pile(box, now) {
+    const by = new Map();
+    const items = [];
+    for (const s of box.snails) {
+      if (!s.hatched(now)) continue;
+      by.set(s.seed, s);
+      const vs = this.visualSize(s);
+      if (s.dead) { items.push({ id: s.seed, along: PERIMETER * 0.12, height: 0, reach: 0, dead: true }); continue; }
+      const mm = s.distanceAt(now);
+      items.push({
+        id: s.seed,
+        along: ((mm + s.offset * PERIMETER) % PERIMETER + PERIMETER) % PERIMETER,
+        mm,
+        // how tall a snail is to stand on, and how much of the lap it takes up
+        height: vs * 0.82,
+        reach: vs * 0.95,
+      });
+    }
+    const live = items.filter((it) => !it.dead);
+    const laid = stackLayout(live).map((r) => ({ ...r, life: by.get(r.id) }));
+    const gone = items.filter((it) => it.dead).map((it) => ({ ...it, lift: 0, riding: false, life: by.get(it.id) }));
+    return gone.concat(laid);
+  }
+
   // The box is drawn to scale; the snail is not. A 3,5 mm hatchling would be
   // four pixels of nothing, so the drawn size has a floor and grows about
   // threefold across the life instead of tenfold.
   visualSize(life) { return 9 + life.size * 0.8; }
 
-  snail(life, now) {
+  // The place comes from pile(): where on the lap, and how far up the pile.
+  snail(life, now, place) {
     const ctx = this.ctx;
     const k = this.k;
     const vs = this.visualSize(life);
@@ -295,15 +362,14 @@ export class View {
     const seen = this.trails.get(life.seed);
     if (!seen || mm !== seen.mm) this.trails.set(life.seed, { mm, until: now + 60000 });
     const trailUntil = this.trails.get(life.seed).until;
-    // Where on the lap it is. The offset keeps three eggs laid the same evening
-    // from sitting in exactly one spot; an empty shell ends up on the soil.
-    const along = (mm + life.offset * PERIMETER) % PERIMETER;
-    const p = life.dead ? placeOnPath(PERIMETER * 0.12) : placeOnPath(along);
+    const along = place.along;
+    const lift = (place.lift || 0) * k;
+    const p = placeOnPath(along);
     const x = this.px(p.x), y = this.py(p.y);
     const angle = Math.atan2(p.nx, -p.ny);
 
     // the slime behind it, drying
-    const fade = Math.max(0, Math.min(1, (trailUntil - now) / 60000));
+    const fade = Math.max(0, Math.min(1, (trailUntil - now) / 60000)) * (place.riding ? 0.35 : 1);
     if (fade > 0 && mm > 2 && !life.dead) {
       ctx.save();
       ctx.strokeStyle = `rgba(190,255,150,${(0.5 * fade).toFixed(3)})`;
@@ -325,6 +391,12 @@ export class View {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
+    if (lift) {
+      // a shadow on the shell it is standing on, so the pile reads as a pile
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath(); ctx.ellipse(0, -lift, vs * 0.5 * k, vs * 0.12 * k, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.translate(0, -lift);
+    }
     if (life.dead) {
       drawSnail(ctx, 'cartoon', { x: 0, y: 0, facing: 1, color: life.color, scale, t: now / 1000, dead: true });
     } else if (sealed) {

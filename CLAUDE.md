@@ -56,6 +56,9 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
   senare får rätt ålder och rätt `(seed, tick)`-hash.
 - **Märken tillhör lådan**, inte en snigel: samma hylla för alla tre, vunna när någon av
   dem klarar villkoret.
+- **Vem som kryper på vem bestäms av `stackLayout` i `view.js`**, en ren funktion som
+  testas i `rules.test.mjs`. Den som kommer bakifrån klättrar. Tröskeln är ungefär ett
+  skals bredd: överlappande fötter är naturligt, krockande skal är det inte.
 - **Dvalan fryser snigeln, inte lådan.** I `Life.live()` returnerar den sovande grenen innan
   något växer eller kryper; `Box.decay()` fortsätter oavsett, för avdunstning bryr sig inte.
 - **Dagboken lagrar inga meningar**, bara dygnets siffror i `days[]`. Texterna genereras

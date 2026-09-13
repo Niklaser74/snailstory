@@ -9,7 +9,7 @@ import { LIFE_DAYS, OLD_DAYS, EGG_MS, TICK_MS, SEAL_AT, WAKE_AT, SIZE_HATCH, SIZ
   FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, PET_SHY_MS, retraction, WAKE_STRETCH_MS, stretching, identity, isNight, rnd } from '../js/life.js';
 import { DIARY_KEYS } from '../js/diary.js';
 import { keysOf } from '../js/i18n.js';
-import { placeOnPath, PERIMETER, BOX_W, BOX_H } from '../js/view.js';
+import { placeOnPath, stackLayout, PERIMETER, BOX_W, BOX_H } from '../js/view.js';
 import * as fmt from '../js/fmt.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -125,6 +125,63 @@ test('the lap of the glass is one continuous metre', () => {
   const normals = new Set();
   for (let mm = 0; mm < PERIMETER; mm += 0.5) { const p = placeOnPath(mm); normals.add(`${Math.round(p.nx)},${Math.round(p.ny)}`); }
   for (const n of ['0,-1', '-1,0', '0,1', '1,0']) assert.ok(normals.has(n), 'never on surface ' + n);
+});
+
+// A snail is about 30 mm of drawn shell, which is what decides whether two of
+// them are touching. `reach` is that width, `height` how far up its shell another
+// one ends up standing.
+const at = (id, along) => ({ id, along, height: 25, reach: 30 });
+
+test('snails far apart all keep the glass', () => {
+  const out = stackLayout([at('a', 100), at('b', 400), at('c', 700)]);
+  assert.equal(out.length, 3);
+  assert.ok(out.every((r) => r.lift === 0 && !r.riding), 'nobody climbs anybody');
+});
+
+test('a snail that catches up rides the one ahead of it', () => {
+  //  b is 10 mm in front of a, well within a shell width
+  const out = stackLayout([at('a', 100), at('b', 110)]);
+  const a = out.find((r) => r.id === 'a');
+  const b = out.find((r) => r.id === 'b');
+  assert.equal(b.lift, 0, 'the one in front keeps the glass');
+  assert.equal(b.riding, false);
+  assert.equal(a.lift, 25, 'the one behind ends up on its shell');
+  assert.equal(a.riding, true);
+  assert.ok(out.indexOf(b) < out.indexOf(a), 'the carrier is drawn first, so the rider is on top');
+});
+
+test('three in a huddle make a pile, not three on one', () => {
+  const out = stackLayout([at('a', 100), at('b', 112), at('c', 124)]);
+  const lift = Object.fromEntries(out.map((r) => [r.id, r.lift]));
+  assert.deepEqual(lift, { c: 0, b: 25, a: 50 }, 'each one stands on the pile, not on the glass');
+  assert.deepEqual(out.map((r) => r.id), ['c', 'b', 'a'], 'bottom of the pile drawn first');
+});
+
+test('the pile works across the start of the lap, which is where it would break', () => {
+  // one just before the seam, one just after: on the glass they are neighbours
+  const out = stackLayout([at('a', PERIMETER - 6), at('b', 4)]);
+  const a = out.find((r) => r.id === 'a');
+  const b = out.find((r) => r.id === 'b');
+  assert.equal(b.lift, 0, 'b is ahead round the ring');
+  assert.equal(a.lift, 25, 'and a, ten millimetres behind it, climbs on');
+  // the same two far apart the other way round must NOT stack
+  const apart = stackLayout([at('a', 0), at('b', PERIMETER / 2)]);
+  assert.ok(apart.every((r) => r.lift === 0), 'half a lap apart is not touching');
+});
+
+test('the pile is decided by the gap, not by who was listed first', () => {
+  const one = stackLayout([at('a', 100), at('b', 108)]).map((r) => [r.id, r.lift]);
+  const other = stackLayout([at('b', 108), at('a', 100)]).map((r) => [r.id, r.lift]);
+  assert.deepEqual(one, other, 'the order they arrive in must not matter');
+  assert.deepEqual(stackLayout([]), []);
+  assert.deepEqual(stackLayout([at('a', 5)]).map((r) => r.lift), [0], 'one snail rides nothing');
+});
+
+test('a whole box in one spot piles up rather than sinking into each other', () => {
+  const out = stackLayout([at('a', 300), at('b', 301), at('c', 302)]);
+  const lifts = out.map((r) => r.lift).sort((x, y) => x - y);
+  assert.deepEqual(lifts, [0, 25, 50]);
+  assert.equal(new Set(lifts).size, 3, 'no two snails end up at the same height');
 });
 
 test('the reminder kinds the client sends are the ones the table accepts', () => {
