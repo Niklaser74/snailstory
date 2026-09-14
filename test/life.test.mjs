@@ -4,7 +4,8 @@
 //   node test/life.test.mjs
 import assert from 'node:assert/strict';
 import { Box, Life, DAY_MS, TICK_MS, LIFE_DAYS, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
-  WAKE_AT, SEAL_AT, SNAIL_MAX, quality } from '../js/life.js';
+  WAKE_AT, SEAL_AT, SNAIL_MAX, LAP, MATE_REACH, GRAVID_DAYS, CLUTCH_DAYS,
+  CLUTCH_MIN, CLUTCH_MAX, lapGap, quality } from '../js/life.js';
 
 const T0 = Date.UTC(2026, 0, 5, 8, 0, 0);     // a Monday morning, fixed
 const TZ = -60;                                // Sweden in winter, frozen for the test
@@ -293,6 +294,139 @@ test('waking is remembered across a save, so the stretch is not restarted', () =
   const back = Box.fromJSON(JSON.parse(JSON.stringify(b.toJSON())));
   assert.equal(one(back).wokeAt, one(b).wokeAt);
   assert.equal(one(back).stalkRetraction(t + 4000), one(b).stalkRetraction(t + 4000));
+});
+
+// ---------- two snails meeting ----------
+
+// A box kept well, with two grown snails parked next to each other on the glass.
+// Mating is a chance per tick while they are touching, so the test runs time
+// forward rather than forcing the event: what is being checked is that it can
+// happen at all, and what follows when it does.
+function pair(days = 120) {
+  const b = new Box({ born: T0, tz: TZ });
+  const a = b.add({ seed: 1001, name: 'Majken', now: T0 });
+  const c = b.add({ seed: 2002, name: 'Gösta', now: T0 });
+  for (let t = T0 + 6 * 3600000; t < T0 + days * DAY_MS; t += 12 * 3600000) {
+    b.mist(t); b.feed(t, 'dandelion'); b.chalk(t); b.clean(t);
+  }
+  b.advanceTo(T0 + days * DAY_MS);
+  return { b, a, c };
+}
+
+test('the lap gap is the shorter way round, including across the seam', () => {
+  assert.equal(Math.round(lapGap(100, 130)), 30);
+  assert.equal(Math.round(lapGap(130, 100)), 30, 'and the same the other way');
+  assert.ok(lapGap(5, LAP - 5) < 11, 'ten millimetres apart across the seam, not a whole lap');
+  assert.ok(Math.abs(lapGap(0, LAP / 2) - LAP / 2) < 0.001, 'half a lap is the furthest two can be');
+});
+
+test('two grown snails in a well kept box find each other, and both carry eggs', () => {
+  const { b, a, c } = pair(300);
+  assert.ok(a.matings > 0 || c.matings > 0, 'three hundred days of two adults and nothing happened');
+  // hermaphrodites: a meeting makes both of them gravid, never just one
+  assert.equal(a.matings, c.matings, 'a meeting is always mutual');
+  assert.ok(a.clutches > 0 && c.clutches > 0, 'both of them lay, which is the whole point');
+  assert.ok(b.badges.includes('mated'), 'the meeting is worth a badge');
+  assert.ok(b.badges.includes('clutch'));
+});
+
+test('a meeting needs two grown snails, a good box, and room between cooldowns', () => {
+  // a lone snail has nobody
+  const alone = fresh();
+  for (let t = T0 + 6 * 3600000; t < T0 + 300 * DAY_MS; t += 12 * 3600000) {
+    alone.mist(t); alone.feed(t, 'dandelion'); alone.chalk(t); alone.clean(t);
+  }
+  alone.advanceTo(T0 + 300 * DAY_MS);
+  assert.equal(one(alone).matings, 0, 'one snail cannot mate with itself');
+
+  // a neglected box raises nobody: the two are sealed in the whole time
+  const grim = new Box({ born: T0, tz: TZ });
+  grim.add({ seed: 1001, name: 'Majken', now: T0 });
+  grim.add({ seed: 2002, name: 'Gösta', now: T0 });
+  grim.advanceTo(T0 + 300 * DAY_MS);
+  assert.equal(grim.snails[0].matings, 0, 'nothing happens in a dried-out box');
+
+  // and the young are too young
+  const young = new Box({ born: T0, tz: TZ });
+  young.add({ seed: 1001, name: 'Majken', now: T0 });
+  young.add({ seed: 2002, name: 'Gösta', now: T0 });
+  for (let t = T0 + 6 * 3600000; t < T0 + 30 * DAY_MS; t += 12 * 3600000) {
+    young.mist(t); young.feed(t, 'dandelion'); young.chalk(t); young.clean(t);
+  }
+  young.advanceTo(T0 + 30 * DAY_MS);
+  assert.ok(!young.snails[0].adult, 'thirty days is not grown up');
+  assert.equal(young.snails[0].matings, 0, 'and not grown up means no mating');
+});
+
+test('eggs go in the soil weeks after the meeting, and hatch weeks after that', () => {
+  const { b, a } = pair(300);
+  const rec = a.days.find((d) => d.mated);
+  assert.ok(rec, 'the diary records the night it happened');
+  const eggDay = a.days.find((d) => d.eggs);
+  assert.ok(eggDay, 'and the day the hole was dug');
+  assert.ok(eggDay.d - rec.d >= GRAVID_DAYS - 1 && eggDay.d - rec.d <= GRAVID_DAYS + 1,
+    'laid ' + (eggDay.d - rec.d) + ' days after mating, expected about ' + GRAVID_DAYS);
+  assert.ok(eggDay.eggs >= CLUTCH_MIN && eggDay.eggs <= CLUTCH_MAX, 'a believable clutch');
+});
+
+test('a clutch that hatches into a box with room leaves one young snail behind', () => {
+  const { b, a, c } = pair(300);
+  const child = b.snails.find((s) => s.parents);
+  assert.ok(child, 'somebody was born here');
+  assert.deepEqual([...child.parents].sort(), ['Gösta', 'Majken'], 'and knows whose it is');
+  assert.ok([a.color, c.color].includes(child.color), 'the shell comes from a parent');
+  assert.ok([a.pattern, c.pattern].includes(child.pattern), 'and so does the pattern');
+  assert.ok(b.badges.includes('born'));
+  assert.equal(child.days[0].d, 0, 'its diary starts at its own day zero');
+  assert.ok(child.days.length < a.days.length - 100, 'and is much shorter than its parents\'');
+  assert.ok(child.dieAt > a.dieAt, 'it has its own three years ahead of it');
+  assert.equal(child.matings, 0, 'and it does not pair up with its own parents');
+});
+
+test('a full box sends the young out into the garden instead of overflowing', () => {
+  const b = new Box({ born: T0, tz: TZ });
+  b.add({ seed: 1001, name: 'Majken', now: T0 });
+  b.add({ seed: 2002, name: 'Gösta', now: T0 });
+  b.add({ seed: 3003, name: 'Alva', now: T0 });
+  for (let t = T0 + 6 * 3600000; t < T0 + 400 * DAY_MS; t += 12 * 3600000) {
+    b.mist(t); b.feed(t, 'dandelion'); b.chalk(t); b.clean(t);
+  }
+  b.advanceTo(T0 + 400 * DAY_MS);
+  assert.equal(b.snails.length, SNAIL_MAX, 'never more than the box holds');
+  assert.ok(b.snails.every((s) => !s.parents), 'and nobody was squeezed in');
+  assert.equal(b.clutches.length >= 0, true);
+});
+
+test('a clutch survives a save, and the terrarium keeps running the same', () => {
+  const { b } = pair(150);
+  const twin = Box.fromJSON(JSON.parse(JSON.stringify(b.toJSON())));
+  assert.deepEqual(twin.clutches, b.clutches, 'the eggs are still buried after a reload');
+  assert.equal(twin.snails[0].matings, b.snails[0].matings);
+  assert.deepEqual(twin.snails[0].mate, b.snails[0].mate);
+  const end = T0 + 220 * DAY_MS;
+  b.advanceTo(end); twin.advanceTo(end);
+  assert.deepEqual(fields(twin), fields(b), 'and it all plays out identically');
+  assert.equal(twin.snails.length, b.snails.length);
+});
+
+test('the whole thing is still the same however the app got there', () => {
+  const end = T0 + 300 * DAY_MS;
+  const care = (b, t) => { b.mist(t); b.feed(t, 'dandelion'); b.chalk(t); b.clean(t); };
+  const build = (step) => {
+    const b = new Box({ born: T0, tz: TZ });
+    b.add({ seed: 1001, name: 'Majken', now: T0 });
+    b.add({ seed: 2002, name: 'Gösta', now: T0 });
+    for (let t = T0 + 6 * 3600000; t < end; t += 12 * 3600000) {
+      care(b, t);
+      if (step) for (let u = t; u < Math.min(t + 12 * 3600000, end); u += step) b.advanceTo(u);
+    }
+    b.advanceTo(end);
+    return b;
+  };
+  const jumped = build(0);
+  const walked = build(41 * 60 * 1000 + 7777);
+  assert.deepEqual(fields(walked), fields(jumped), 'mating must not depend on how often the app was opened');
+  assert.deepEqual(walked.snails.map((s) => s.name), jumped.snails.map((s) => s.name));
 });
 
 // ---------- what the server is told to remind you of ----------

@@ -24,13 +24,19 @@ const EXTRA = {
   dirty: ['dirty.1', 'dirty.2'],
   still: ['still.1', 'still.2', 'still.3', 'still.4'],
 };
+// A night two snails found each other, and the day one buried a clutch. Both
+// push everything else out of the way: nothing else that happens in a snail's
+// day is worth mentioning first.
+const MATED = ['mated.1', 'mated.2', 'mated.3'];
+const EGGS = ['eggs.1', 'eggs.2'];
 export const FOOD_KEYS = ['lettuce', 'cucumber', 'carrot', 'dandelion', 'apple', 'oats'];
 
 // Every key the diary can ever ask i18n for. test/rules.test.mjs checks them.
 export const DIARY_KEYS = [
   ...Object.values(MAIN).flat(),
   ...Object.values(EXTRA).flat(),
-  'birthday', 'hatch', 'laid', 'last',
+  ...MATED, ...EGGS,
+  'birthday', 'hatch', 'laid', 'last', 'born', 'dart',
 ].map((k) => 'd.' + k).concat(FOOD_KEYS.map((f) => 'food.' + f));
 
 const pick = (list, seed, day, salt) => list[Math.floor(rnd(seed, day, salt) * list.length)];
@@ -46,12 +52,33 @@ export function entryFor(life, rec, lang = 'sv') {
     size: fmt.size(rec.size ?? 0, lang),
     years: String(Math.floor(day / 365)),
     pets: String(rec.pets || 0),
+    mate: rec.mated || '',
+    eggs: String(rec.eggs || 0),
+    mother: life.parents ? life.parents[0] : '',
+    father: life.parents ? life.parents[1] : '',
     ...extra,
   });
 
-  // day zero is the hatching, and the last day is the last day
-  if (day === 0) return { day, lines: [{ key: 'd.laid', params: P() }, { key: 'd.hatch', params: P() }] };
+  // Day zero is the hatching. A snail born in this box opens its diary with
+  // whose it is, because that is the first thing to say about it.
+  if (day === 0) {
+    return life.parents
+      ? { day, lines: [{ key: 'd.born', params: P() }] }
+      : { day, lines: [{ key: 'd.laid', params: P() }, { key: 'd.hatch', params: P() }] };
+  }
   if (day >= LIFE_DAYS) return { day, lines: [{ key: 'd.last', params: P() }] };
+
+  // The two days worth writing about. The love dart is a real thing a garden
+  // snail fires at its partner, and it is made of chalk.
+  if (rec.mated) {
+    return { day, lines: [
+      { key: 'd.' + pick(MATED, seed, day, 37), params: P() },
+      { key: 'd.dart', params: P() },
+    ] };
+  }
+  if (rec.eggs) {
+    return { day, lines: [{ key: 'd.' + pick(EGGS, seed, day, 41), params: P() }] };
+  }
 
   const sleepShare = (rec.sleep || 0) / 288;
   let group;

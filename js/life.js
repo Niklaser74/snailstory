@@ -45,6 +45,33 @@ export const SIZE_ADULT = 34;              // the shell lip thickens: grown up
 export const TAU_DAYS = 60;                // time constant of growth under perfect care
 export const ADULT_DAYS = 240;             // a stunted snail still matures eventually
 
+// ---- the terrarium, in millimetres ----
+// A realistic 30 x 24 cm keeper's box. The inside is a rounded rectangle about
+// a metre around, and a snail's place on the glass is its odometer modulo that
+// lap — so these are facts about the box, not about how it is drawn. view.js
+// turns a point on the lap into pixels.
+export const BOX_W = 300;
+export const BOX_H = 240;
+export const BOX_CORNER = 25;
+export const LAP = 2 * (BOX_W - 2 * BOX_CORNER) + 2 * (BOX_H - 2 * BOX_CORNER) + 2 * Math.PI * BOX_CORNER;
+
+// ---- two snails meeting ----
+// Garden snails are hermaphrodites: any two grown ones can mate, and afterwards
+// BOTH of them lay eggs. That is the whole reason this is in the game. They
+// court for hours, and Cornu aspersum really does fire a calcium "love dart" at
+// its partner first — which is why mating costs the box a little chalk.
+//
+// It happens on its own, while you are not looking. You read about it.
+export const MATE_REACH = 32;              // mm apart: about a shell's width, same as climbing
+export const MATE_CHANCE = 0.006;          // per tick, while two grown ones are touching
+export const MATE_QUALITY = 0.5;           // and only in a box worth raising young in
+export const MATE_COOLDOWN_DAYS = 45;      // a few times a year, not every time they pass
+export const GRAVID_DAYS = 14;             // from mating to digging a hole
+export const CLUTCH_DAYS = 21;             // eggs in the soil before they hatch
+export const CLUTCH_MIN = 30;              // a real clutch is thirty to a hundred
+export const CLUTCH_MAX = 96;
+export const DART_CALCIUM = 0.08;
+
 // ---- crawling ----
 export const SPEED_MM_S = 0.9;             // about a metre an hour, which is true
 export const NIGHT_ACTIVITY = 0.18;        // share of night ticks spent moving
@@ -138,7 +165,8 @@ export function quality(b) {
 export const SHELL_COLORS = ['#c8913f', '#a8701f', '#e0b35e', '#8a5a2b', '#d9a14c', '#b58b5a', '#e8c56a', '#a855f7'];
 export const SHELL_PATTERNS = ['spiral', 'stripes', 'dots'];
 
-// Everything about a snail that is decided the moment the egg is laid.
+// Everything about a snail that is decided the moment the egg is laid — unless
+// it was born here, in which case its shell comes from its parents instead.
 export function identity(seed) {
   return {
     color: SHELL_COLORS[Math.floor(rnd(seed, -1, 7) * SHELL_COLORS.length)],
@@ -153,13 +181,18 @@ export function identity(seed) {
 // One snail
 // ===========================================================================
 export class Life {
-  constructor({ seed = (Date.now() | 0), name = '', laidAt = Date.now(), bornTick = 0 } = {}) {
+  constructor({ seed = (Date.now() | 0), name = '', laidAt = Date.now(), bornTick = 0,
+    color = null, pattern = null, parents = null, parentSeeds = null } = {}) {
     this.seed = seed | 0;
     this.name = name;
     const id = identity(this.seed);
-    this.color = id.color;          // decided by the seed, never saved
-    this.pattern = id.pattern;
+    // A snail with no parents gets its shell from its seed. One born in the box
+    // inherits, so the colour and the pattern are saved either way.
+    this.color = color || id.color;
+    this.pattern = pattern || id.pattern;
     this.offset = id.offset;
+    this.parents = parents;         // [name, name] for a snail born here
+    this.parentSeeds = parentSeeds; // the same two, as ids that cannot be renamed
     this.laidAt = laidAt;           // wall clock, for the ninety-second wait and birthdays
     this.bornTick = bornTick;       // where on the box's grid the egg was laid
     this.tick = 0;                  // last tick of its OWN life already lived through
@@ -172,6 +205,11 @@ export class Life {
     this.pets = 0;
     this.petAt = 0;
     this.wokeAt = 0;
+    this.matedTick = -1e9;          // box ticks, because meeting is a box affair
+    this.gravidTick = 0;            // when it will dig a hole; 0 = not carrying
+    this.mate = null;               // { name, color, pattern } of the last partner
+    this.matings = 0;
+    this.clutches = 0;
     this.adult = false;
     this.dead = false;
     this.days = [];                 // one closed-day record per day lived
@@ -282,6 +320,13 @@ export class Life {
     const into = ((now - this.laidAt) % TICK_MS) / TICK_MS;
     return this.distance + this.tickDistance(i) * into;
   }
+
+  // Where on the lap of the glass it is, in millimetres. The offset keeps three
+  // eggs laid the same evening from sitting in exactly one spot.
+  alongAt(now) { return wrapLap(this.distanceAt(now) + this.offset * LAP); }
+  // The same at the end of a tick, with no interpolation: what the simulation
+  // uses when it asks who is next to whom.
+  get along() { return wrapLap(this.distance + this.offset * LAP); }
 
   // ---------- the diary's raw material ----------
   rollDay(i, b) {
@@ -411,6 +456,7 @@ export class Box {
     this.cleans = 0;
     this.chalks = 0;
     this.snails = [];
+    this.clutches = [];             // eggs buried in the soil, waiting
     this.badges = [];
     this.events = [];
   }
@@ -418,12 +464,16 @@ export class Box {
   // ---------- the snails in it ----------
   get room() { return SNAIL_MAX - this.snails.length; }
   hasRoom() { return this.room > 0; }
-  add({ name = '', seed = (Date.now() | 0), now = Date.now() } = {}) {
+  add({ name = '', seed = (Date.now() | 0), now = Date.now(), color = null, pattern = null,
+    parents = null, parentSeeds = null, quiet = false } = {}) {
     if (!this.hasRoom()) return null;
-    const s = new Life({ seed, name, laidAt: now, bornTick: Math.max(0, Math.ceil((now - this.born) / TICK_MS)) });
+    const s = new Life({
+      seed, name, laidAt: now, color, pattern, parents, parentSeeds,
+      bornTick: Math.max(0, Math.ceil((now - this.born) / TICK_MS)),
+    });
     s.box = this;
     this.snails.push(s);
-    this.events.push({ type: 'laid', snail: s });
+    if (!quiet) this.events.push({ type: 'laid', snail: s });
     return s;
   }
   // A snail that has reached the end leaves the box; the keeper is told first.
@@ -451,6 +501,8 @@ export class Box {
       for (let i = this.tick + 1; i <= target; i++) {
         this.decay(i);
         for (const s of this.snails) s.stepAt(i, this);
+        this.courtship(i);
+        this.eggs(i);
       }
       this.tick = target;
     }
@@ -467,6 +519,95 @@ export class Box {
     this.food = clamp01(this.food - (TICK_H / FOOD_HOURS) * (night ? 1.4 : 0.6));
     this.calcium = clamp01(this.calcium - TICK_H / CALCIUM_HOURS);
     this.grime = clamp01(this.grime + TICK_H / GRIME_HOURS);
+  }
+
+  // ---------- two snails meeting ----------
+  // Garden snails are hermaphrodites, so there is no pairing to arrange: any two
+  // grown ones that happen to be on the same patch of glass will do, and both
+  // walk away carrying eggs. Which is the fact that makes this worth having.
+  courtship(i) {
+    if (this.snails.length < 2) return;
+    if (quality(this) < MATE_QUALITY) return;          // not a box to raise young in
+    const cool = (MATE_COOLDOWN_DAYS * DAY_MS) / TICK_MS;
+    const ready = this.snails.filter((s) =>
+      !s.dead && !s.asleep && s.adult && !s.gravidTick && i - s.matedTick >= cool);
+    for (let a = 0; a < ready.length; a++) {
+      for (let b = a + 1; b < ready.length; b++) {
+        const one = ready[a], two = ready[b];
+        if (one.gravidTick || two.gravidTick) continue;  // one meeting per tick each
+        if (isParent(one, two) || isParent(two, one)) continue;
+        if (lapGap(one.along, two.along) > MATE_REACH) continue;
+        if (rnd(one.seed ^ two.seed, i, 61) >= MATE_CHANCE) continue;
+        this.pairUp(one, two, i);
+      }
+    }
+  }
+
+  // Snails are not fussy, but a terrarium of three fills up with one family fast
+  // and "X and its own mother found each other" is not a diary entry anyone wants
+  // to read. Siblings are fine: only one of a clutch ever stays.
+  pairUp(one, two, i) {
+    const gravid = i + Math.round((GRAVID_DAYS * DAY_MS) / TICK_MS);
+    for (const [s, other] of [[one, two], [two, one]]) {
+      s.matedTick = i;
+      s.gravidTick = gravid;
+      s.mate = { name: other.name, color: other.color, pattern: other.pattern, seed: other.seed };
+      s.matings++;
+      s.today.mated = other.name;
+    }
+    // the love dart is built out of chalk, and it is the box's chalk
+    this.calcium = clamp01(this.calcium - DART_CALCIUM);
+    this.events.push({ type: 'mated', snail: one, other: two });
+  }
+
+  // Digging the hole, and what comes up out of it three weeks later.
+  eggs(i) {
+    for (const s of this.snails) {
+      if (s.dead || s.asleep || !s.gravidTick || i < s.gravidTick) continue;
+      s.gravidTick = 0;
+      const count = CLUTCH_MIN + Math.floor(rnd(s.seed, i, 71) * (CLUTCH_MAX - CLUTCH_MIN));
+      this.clutches.push({
+        laidTick: i,
+        hatchTick: i + Math.round((CLUTCH_DAYS * DAY_MS) / TICK_MS),
+        count,
+        spot: rnd(s.seed, i, 73),                      // where in the soil, 0-1
+        parents: [s.name, s.mate ? s.mate.name : ''],
+        parentSeeds: [s.seed, s.mate ? s.mate.seed : s.seed],
+        look: {
+          color: [s.color, s.mate ? s.mate.color : s.color],
+          pattern: [s.pattern, s.mate ? s.mate.pattern : s.pattern],
+        },
+        seed: (s.seed ^ (s.mate ? s.mate.seed : 0) ^ Math.imul(i, 2654435761)) | 0,
+      });
+      s.clutches++;
+      s.today.eggs = count;
+      this.events.push({ type: 'clutch', snail: s, count });
+    }
+    const due = this.clutches.filter((c) => i >= c.hatchTick);
+    for (const c of due) this.hatchClutch(c, i);
+    if (due.length) this.clutches = this.clutches.filter((c) => !due.includes(c));
+  }
+
+  // A clutch is thirty to a hundred eggs and the box holds three snails, so at
+  // most one stays. The rest go out into the garden, which is where they would
+  // have ended up anyway.
+  hatchClutch(c, i) {
+    if (!this.hasRoom()) {
+      this.events.push({ type: 'garden', count: c.count, parents: c.parents });
+      return;
+    }
+    const t = this.born + i * TICK_MS;
+    const child = this.add({
+      name: '',
+      seed: c.seed,
+      now: t - EGG_MS,                                  // born, not an egg: the soil was the egg
+      color: c.look.color[rnd(c.seed, i, 81) < 0.5 ? 0 : 1],
+      pattern: c.look.pattern[rnd(c.seed, i, 83) < 0.5 ? 0 : 1],
+      parents: c.parents,
+      parentSeeds: c.parentSeeds,
+      quiet: true,
+    });
+    this.events.push({ type: 'hatchling', snail: child, count: c.count, parents: c.parents });
   }
 
   // ---------- what you do to the box ----------
@@ -565,6 +706,7 @@ export class Box {
   static fromJSON(j) {
     const b = new Box({ born: j.born, tz: j.tz });
     for (const k of SAVED_BOX) if (j[k] !== undefined) b[k] = j[k];
+    if (!Array.isArray(b.clutches)) b.clutches = [];
     b.snails = (j.snails || []).map((s) => {
       const l = Life.fromJSON(s);
       l.box = b;
@@ -615,15 +757,30 @@ export const BADGES = [
   { id: 'spotless', won: (b) => b.cleans >= 20 },
   { id: 'patient', won: (b) => b.snails.reduce((a, s) => a + s.pets, 0) >= 50 },
   { id: 'full', won: (b) => b.snails.length >= SNAIL_MAX },
+  { id: 'mated', won: (b) => b.any((s) => s.matings > 0) },
+  { id: 'clutch', won: (b) => b.any((s) => s.clutches > 0) },
+  { id: 'born', won: (b) => b.any((s) => !!s.parents) },
 ];
 
 const SAVED_SNAIL = ['seed', 'name', 'laidAt', 'bornTick', 'tick', 'size', 'distance', 'asleep',
   'sealedTicks', 'awakeTicks', 'activeTicks', 'pets', 'petAt', 'wokeAt', 'adult', 'dead', 'diedAt',
-  'days', 'today'];
+  'days', 'today', 'color', 'pattern', 'parents', 'parentSeeds', 'matedTick', 'gravidTick', 'mate',
+  'matings', 'clutches'];
 
 const SAVED_BOX = ['v', 'born', 'tz', 'tick', 'moisture', 'food', 'calcium', 'grime',
-  'meals', 'mists', 'cleans', 'chalks', 'badges'];
+  'meals', 'mists', 'cleans', 'chalks', 'badges', 'clutches'];
 
 function dayRecord(d) {
-  return { d, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, grew: false, ate: null, asleep: false, size: SIZE_HATCH, moisture: 1, grime: 0 };
+  return { d, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, grew: false, ate: null, asleep: false,
+    size: SIZE_HATCH, moisture: 1, grime: 0, mated: null, eggs: 0 };
+}
+
+// True when `child` came out of a clutch `other` helped lay.
+const isParent = (child, other) => !!(child.parentSeeds && child.parentSeeds.includes(other.seed));
+
+const wrapLap = (mm) => ((mm % LAP) + LAP) % LAP;
+// The shorter way round the ring between two places on the lap.
+export function lapGap(a, b) {
+  const d = Math.abs(wrapLap(a) - wrapLap(b));
+  return Math.min(d, LAP - d);
 }

@@ -56,6 +56,15 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
   senare får rätt ålder och rätt `(seed, tick)`-hash.
 - **Märken tillhör lådan**, inte en snigel: samma hylla för alla tre, vunna när någon av
   dem klarar villkoret.
+- **Parning är lådans sak, inte en snigels.** `Box.courtship()` letar par varje tick;
+  `Life` bär bara följderna (`gravidTick`, `mate`, `parents`). Den som lägger ägg gör det
+  i lådans jord, så kullarna ligger på `Box.clutches`.
+- **Båda parterna blir med ägg.** De är hermafroditer, och det är hela poängen med att
+  ha funktionen. Går det någonsin att bara en blir gravid är det en bugg.
+- **En snigel parar sig aldrig med sin förälder** (`parentSeeds`). Namn kan bytas, seeds
+  kan det inte, så kontrollen går på seed.
+- **Lådans mått bor i `life.js`** (`BOX_W`, `BOX_H`, `LAP`): simuleringen frågar vem som
+  står bredvid vem i samma millimeter som vyn ritar i. `view.js` äger bara `placeOnPath`.
 - **Vem som kryper på vem bestäms av `stackLayout` i `view.js`**, en ren funktion som
   testas i `rules.test.mjs`. Den som kommer bakifrån klättrar. Tröskeln är ungefär ett
   skals bredd: överlappande fötter är naturligt, krockande skal är det inte.
@@ -89,8 +98,10 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
 
 `window.snailstory.skip(dagar)` i konsolen drar tillbaka hela terrariet och
 spelar upp det, så tre år gamla sniglar går att titta på direkt.
-`window.snailstory.add('Namn')` lägger ett ägg till. `.box` är lådan, `.sel` den
-valda snigeln.
+`window.snailstory.add('Namn')` lägger ett ägg till.
+`window.snailstory.raise(dagar)` spolar tillbaka och spelar upp med skötsel två
+gånger om dygnet — enda sättet att se en vuxen, parande låda utan att vänta ett
+år. `.box` är lådan, `.sel` den valda snigeln.
 
 ## Innan du är klar
 

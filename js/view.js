@@ -8,12 +8,14 @@
 // the odometer is one lap of the glass — no separate position to keep, save or
 // get out of step with the simulation.
 import { drawSnail } from './game/snails.js';
-import { gardenHour, isNight } from './life.js';
+import { gardenHour, isNight, BOX_W, BOX_H, BOX_CORNER, LAP, CLUTCH_DAYS, TICK_MS, DAY_MS } from './life.js';
 
-// interior of the box, in millimetres: a realistic 30 × 24 cm keeper's box
-export const BOX_W = 300;
-export const BOX_H = 240;
-const CORNER = 25;                 // the snail rounds the corners
+// The box's size is a fact about the terrarium, not about the drawing, so it
+// lives in life.js — the simulation asks who is next to whom in the same
+// millimetres. Re-exported here because that is where callers expect it.
+export { BOX_W, BOX_H };
+export const PERIMETER = LAP;
+const CORNER = BOX_CORNER;         // the snail rounds the corners
 const SOIL = 34;                   // depth of soil, mm
 const INK = '#3a2210';
 // the scene is 1,45 box heights tall: wall above, box, table below
@@ -23,7 +25,6 @@ const SCENE = 1.25;   // the least room the scene needs: wall, box, table
 const STRAIGHT_X = BOX_W - 2 * CORNER;
 const STRAIGHT_Y = BOX_H - 2 * CORNER;
 const ARC = (Math.PI / 2) * CORNER;
-export const PERIMETER = 2 * STRAIGHT_X + 2 * STRAIGHT_Y + 4 * ARC;
 
 // Where on the glass a snail that has crawled `mm` is, in box millimetres with
 // (0,0) at the top left of the interior, plus the outward surface normal.
@@ -146,6 +147,7 @@ export class View {
     this.glassBack(box);
     this.soil(box);
     this.furniture(box, now);
+    this.clutches(box, now);
     for (const s of box.snails) if (!s.hatched(now)) this.egg(now, s);
     for (const r of this.pile(box, now)) this.snail(r.life, now, r);
     this.glassFront(box, night);
@@ -319,6 +321,33 @@ export class View {
     ctx.lineWidth = Math.max(1, k * 0.4);
     ctx.beginPath(); ctx.ellipse(x, y - r * 0.4, r * 0.82, r, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.restore();
+  }
+
+  // Eggs buried in the soil: a shallow dip with a huddle of them in it, showing
+  // a little more as the three weeks pass and the soil is nudged aside.
+  clutches(box, now) {
+    if (!box.clutches || !box.clutches.length) return;
+    const ctx = this.ctx;
+    const k = this.k;
+    const ground = this.py(BOX_H - SOIL);
+    for (const c of box.clutches) {
+      const done = Math.max(0, Math.min(1, (box.tick - c.laidTick) / ((CLUTCH_DAYS * DAY_MS) / TICK_MS)));
+      const x = this.px(30 + c.spot * (BOX_W - 60));
+      const y = ground + k * (13 - 5 * done);
+      // drawn oversized, like the snails: at true scale a 4 mm egg is two pixels
+      const r = k * 3.2;
+      // the dip in the soil
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath(); ctx.ellipse(x, y, r * 4.2, r * 1.9, 0, 0, Math.PI * 2); ctx.fill();
+      // the eggs, always in the same places for a given clutch
+      for (let i = 0; i < 9; i++) {
+        const a = (i * 2.399) + c.spot * 6;
+        const ex = x + Math.cos(a) * r * (0.6 + (i % 3) * 0.9);
+        const ey = y + Math.sin(a) * r * (0.3 + (i % 3) * 0.42);
+        ctx.fillStyle = done > 0.85 ? 'rgba(226,216,190,0.95)' : 'rgba(253,250,240,0.95)';
+        ctx.beginPath(); ctx.ellipse(ex, ey, r * 0.62, r * 0.78, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
 
   // Everyone's place on the lap, with the pile worked out. A dead shell lies on

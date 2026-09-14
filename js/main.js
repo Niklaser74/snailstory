@@ -38,8 +38,12 @@ function load() {
   begin();
   const away = box.takeEvents();             // the away panel says it better than toasts
   if (awayFor > 30 * 60 * 1000) showAway(before, awayFor);
-  for (const e of away) if (e.type === 'died') queueDeath(e.snail);
+  for (const e of away) {
+    if (e.type === 'died') queueDeath(e.snail);
+    if (e.type === 'hatchling') queueWelcome(e);
+  }
   showNextDeath();
+  showNextWelcome();
   save();
   if (legacy) store.del('life');             // it lives in the box now
   startReminders();
@@ -100,10 +104,7 @@ $('egg-close').addEventListener('click', () => { $('egg').hidden = true; });
 // nobody ends up with three snails all called the same thing.
 function pickedName() {
   const typed = ($('name-input').value || '').trim().slice(0, 16);
-  if (typed) return typed;
-  const taken = new Set((box ? box.snails : []).map((s2) => s2.name));
-  const free = NAMES.filter((n) => !taken.has(n));
-  return (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
+  return typed || freeName();
 }
 
 function layEgg(name, now = Date.now()) {
@@ -130,18 +131,12 @@ function addSnail() {
   $('add').hidden = false;
   setTimeout(() => $('add-name').focus(), 50);
 }
-$('add-dice').addEventListener('click', () => {
-  const taken = new Set(box.snails.map((s2) => s2.name));
-  const free = NAMES.filter((n) => !taken.has(n));
-  $('add-name').value = (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
-});
+$('add-dice').addEventListener('click', () => { $('add-name').value = freeName(); });
 $('add-cancel').addEventListener('click', () => { $('add').hidden = true; });
 $('add-lay').addEventListener('click', () => {
   const typed = ($('add-name').value || '').trim().slice(0, 16);
   $('add').hidden = true;
-  const taken = new Set(box.snails.map((s2) => s2.name));
-  const free = NAMES.filter((n) => !taken.has(n));
-  layEgg(typed || (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))]);
+  layEgg(typed || freeName());
   toast(t('add.laid'));
 });
 
@@ -201,6 +196,18 @@ function handleEvents() {
         break;
       }
       case 'died': queueDeath(e.snail); break;
+      case 'mated':
+        toast(t('mated.toast', { a: e.snail.name, b: e.other.name }));
+        sfx.win();
+        break;
+      case 'clutch':
+        toast(t('clutch.toast', { name: e.snail.name, eggs: String(e.count) }));
+        sfx.crate();
+        break;
+      case 'hatchling': queueWelcome(e); break;
+      case 'garden':
+        toast(t('garden.toast', { count: String(e.count) }));
+        break;
       default: break;
     }
   }
@@ -208,6 +215,7 @@ function handleEvents() {
   else if (sealed > 1) toast(t('act.sealedMany', { n: String(sealed) }));
   if (sealed) { sfx.tickLow(); syncReminders(); }
   showNextDeath();
+  showNextWelcome();
 }
 function lastSealedName() {
   const s2 = box.snails.find((x) => x.asleep);
@@ -220,6 +228,7 @@ function name() { return sel && sel.name ? sel.name : t('start.placeholder'); }
 function refreshAll() {
   if (!box || !box.snails.length) return;
   if (!sel || !box.snails.includes(sel)) sel = box.snails[0];
+  for (const s2 of box.snails) if (!s2.name) s2.name = freeName();
   const now = Date.now();
   const lang = getLang();
   refreshRow(now);
@@ -398,7 +407,52 @@ function closeDeath() {
   if (!box.snails.length) { startOver({ keepPrevious: true }); return; }
   refreshAll();
   showNextDeath();
+  showNextWelcome();
 }
+// A snail born in the box arrives nameless: the keeper names it. If the app was
+// closed when it hatched the panel waits until it is opened again, and anything
+// still nameless by then gets a name of its own accord — nobody should ever see
+// a blank in the row.
+const welcomes = [];
+function queueWelcome(e) { welcomes.push(e); }
+function showNextWelcome() {
+  if (!welcomes.length || !$('welcome').hidden || !$('death').hidden) return;
+  const e = welcomes[0];
+  if (!box.snails.includes(e.snail)) { welcomes.shift(); return showNextWelcome(); }
+  sel = e.snail;
+  $('welcome-body').textContent = t('mate.body', {
+    mother: e.parents[0] || t('start.placeholder'),
+    father: e.parents[1] || t('start.placeholder'),
+    rest: String(Math.max(0, e.count - 1)),
+  });
+  // it already has a name, from the guard that never lets one be blank; the
+  // panel offers it so pressing Välkommen keeps it
+  $('welcome-name').value = e.snail.name || '';
+  $('welcome').hidden = false;
+  sfx.win();
+  refreshAll();
+}
+$('welcome-dice').addEventListener('click', () => { $('welcome-name').value = freeName(); });
+$('welcome-ok').addEventListener('click', () => {
+  const e = welcomes.shift();
+  if (e && box.snails.includes(e.snail)) {
+    e.snail.name = ($('welcome-name').value || '').trim().slice(0, 16) || freeName();
+    sel = e.snail;
+  }
+  $('welcome').hidden = true;
+  save();
+  syncReminders(200);
+  refreshAll();
+  showNextWelcome();
+});
+
+// A name nobody in the box has already.
+function freeName() {
+  const taken = new Set((box ? box.snails : []).map((s2) => s2.name));
+  const free = NAMES.filter((n) => !taken.has(n));
+  return (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
+}
+
 function remember(s2) {
   const prev = store.get('previous', []);
   prev.push({ name: s2.name, age: s2.ageMs(Date.now()), distance: s2.distance, size: s2.size, days: s2.days.length });
@@ -424,7 +478,8 @@ function startOver({ keepPrevious = false } = {}) {
   box = null;
   sel = null;
   deaths.length = 0;
-  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add']) $(id).hidden = true;
+  welcomes.length = 0;
+  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome']) $(id).hidden = true;
   $('name-input').value = '';
   showStart();
 }
@@ -459,7 +514,7 @@ document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('clic
 }));
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  for (const id of ['help', 'reset', 'feed', 'add', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
+  for (const id of ['help', 'reset', 'feed', 'add', 'welcome', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
     if (!$(id).hidden) { $(id).hidden = true; return; }
   }
 });
@@ -588,6 +643,22 @@ window.snailstory = {
     save();
   },
   add(name) { return layEgg(name || 'Testsnigel'); },
+  // Rewind the terrarium and replay it as if it had been looked after twice a
+  // day the whole time — the only way to see a grown, breeding box without
+  // waiting a year for it.
+  raise(days) {
+    const now = Date.now();
+    const d = days * DAY_MS;
+    box.born -= d;
+    for (const s2 of box.snails) { s2.laidAt -= d; s2.bornTick = 0; }
+    for (let t = box.born + 6 * 3600000; t < now; t += 12 * 3600000) {
+      box.mist(t); box.feed(t, 'dandelion'); box.chalk(t); box.clean(t);
+    }
+    box.advanceTo(now);
+    handleEvents();
+    refreshAll();
+    save();
+  },
   entryFor, LIFE_DAYS, EGG_MS, SNAIL_MAX,
 };
 

@@ -10,6 +10,8 @@ det behövs. Du förlorar växandet, aldrig snigeln. Bara ålderdomen tar den.
 
 Det får plats **tre sniglar** i terrariet. De delar vatten, mat, kalk och
 städning, men lever var sitt liv med egen ålder, eget skal och egen dagbok.
+Sköts lådan väl hittar två fullvuxna varandra förr eller senare, och eftersom
+sniglar är hermafroditer går **båda** därifrån med ägg.
 
 Varje dygn skriver sig självt in i dagboken, en rad i taget:
 
@@ -71,14 +73,29 @@ klockan; varje `Life` äger sitt eget — storlek, krypsträcka, dvala, dagbok o
 sin död.
 
 **Dvalan är inte ett strafftillstånd.** När fukten eller maten bottnar sätts
-`asleep`, och då står allting stilla — behoven sjunker inte, smutsen växer inte,
-skalet växer inte. Det är därför en glömd snigel ser likadan ut efter en månad
-som efter en vecka.
+`asleep`, och då står snigeln stilla — den växer inte, kryper inte och räknar
+inte ned något. Det är därför en glömd snigel ser likadan ut efter en månad som
+efter en vecka. Lådan omkring den torkar vidare ändå: avdunstning bryr sig inte
+om vem som är vaken.
 
 **Snigelns plats i lådan är krypsträckan.** Lådans insida är en rundad rektangel
 på ungefär en meter, och positionen är `distance mod omkrets`. En meter på
 mätaren är ett varv längs golv, glas, tak och tillbaka. Ingen position att spara
 och ingenting som kan hamna ur fas med simuleringen.
+
+**Två som möts kan bli fler.** Trädgårdssniglar är hermafroditer: vilka två
+fullvuxna som helst kan para sig, och efteråt lägger de båda ägg. Det sker av
+sig självt i en välskött låda, ett par gånger om året, och du läser om det i
+dagboken dagen efter. Cornu aspersum skjuter dessutom en kärlekspil av kalk på
+sin partner innan de parar sig, vilket den gör här också — det syns på
+kalkmätaren.
+
+Två veckor senare gräver var och en ner en kull på 30 till 96 ägg i jorden.
+Tre veckor efter det kläcks de. Finns det plats stannar **en** unge kvar och
+ärver skalfärg och mönster från sina föräldrar; resten släpps ut i trädgården,
+vilket är vad man gör med åttio sniglar. En unge parar sig aldrig med sin egen
+förälder — tre sniglar i en låda blir en familj fort, och den dagbokssidan vill
+ingen läsa.
 
 **Sniglar som möts kryper på varandra.** Alla kryper åt samma håll runt glaset,
 så den som kommer bakifrån är den som klättrar: i en klunga behåller den
@@ -128,6 +145,4 @@ relativa sökvägar, egen cache-prefix (`snailstory-`), egna `localStorage`-nyck
 
 - Speltesta på riktigt över några dygn och justera takten: fuktens och matens
   livslängd, hur snabbt skalet växer, hur ofta den kryper.
-- Ägg och avkomma mellan sniglarna i samma låda. Sniglar är hermafroditer, så
-  vilka två som helst kan bli föräldrar.
 - OG-bild och butikstexter.
