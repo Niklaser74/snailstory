@@ -92,8 +92,13 @@ kalkmätaren.
 
 Två veckor senare gräver var och en ner en kull på 30 till 96 ägg i jorden.
 Tre veckor efter det kläcks de. Finns det plats stannar **en** unge kvar och
-ärver skalfärg och mönster från sina föräldrar; resten släpps ut i trädgården,
-vilket är vad man gör med åttio sniglar. En unge parar sig aldrig med sin egen
+ärver skalfärg, mönster och namn från sina föräldrar; resten släpps ut i
+trädgården, vilket är vad man gör med åttio sniglar.
+
+Namnet ärvs som hos en kungalängd: efter Majken kommer Majken II, sedan
+Majken III. Räkningen minns även de sniglar som är borta, så en ny unge tar
+aldrig ett nummer som redan varit. Det är bara ett förslag — rutan står öppen,
+och en knapp slumpar fram något helt annat. En unge parar sig aldrig med sin egen
 förälder — tre sniglar i en låda blir en familj fort, och den dagbokssidan vill
 ingen läsa.
 

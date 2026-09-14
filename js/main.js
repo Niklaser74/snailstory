@@ -1,7 +1,7 @@
 // Snail Story: the page around the simulation. Loads the snail, catches it up to
 // now, draws it, and wires the five things you can do. All rules live in
 // life.js; all sentences live in i18n.js and diary.js.
-import { Box, FOODS, LIFE_DAYS, DAY_MS, TICK_MS, BADGES, EGG_MS, SNAIL_MAX } from './life.js';
+import { Box, FOODS, LIFE_DAYS, DAY_MS, TICK_MS, BADGES, EGG_MS, SNAIL_MAX, heirName } from './life.js';
 import { entryFor, diaryFor } from './diary.js';
 import { View } from './view.js';
 import * as fmt from './fmt.js';
@@ -228,7 +228,7 @@ function name() { return sel && sel.name ? sel.name : t('start.placeholder'); }
 function refreshAll() {
   if (!box || !box.snails.length) return;
   if (!sel || !box.snails.includes(sel)) sel = box.snails[0];
-  for (const s2 of box.snails) if (!s2.name) s2.name = freeName();
+  for (const s2 of box.snails) if (!s2.name) s2.name = nameFor(s2);
   const now = Date.now();
   const lang = getLang();
   refreshRow(now);
@@ -425,9 +425,11 @@ function showNextWelcome() {
     father: e.parents[1] || t('start.placeholder'),
     rest: String(Math.max(0, e.count - 1)),
   });
-  // it already has a name, from the guard that never lets one be blank; the
-  // panel offers it so pressing Välkommen keeps it
-  $('welcome-name').value = e.snail.name || '';
+  // The panel may open before the screen has refreshed, so it names the snail
+  // itself rather than relying on the guard having run. Offering the name means
+  // pressing Välkommen keeps it.
+  if (!e.snail.name) e.snail.name = nameFor(e.snail);
+  $('welcome-name').value = e.snail.name;
   $('welcome').hidden = false;
   sfx.win();
   refreshAll();
@@ -436,7 +438,7 @@ $('welcome-dice').addEventListener('click', () => { $('welcome-name').value = fr
 $('welcome-ok').addEventListener('click', () => {
   const e = welcomes.shift();
   if (e && box.snails.includes(e.snail)) {
-    e.snail.name = ($('welcome-name').value || '').trim().slice(0, 16) || freeName();
+    e.snail.name = ($('welcome-name').value || '').trim().slice(0, 16) || nameFor(e.snail);
     sel = e.snail;
   }
   $('welcome').hidden = true;
@@ -448,9 +450,22 @@ $('welcome-ok').addEventListener('click', () => {
 
 // A name nobody in the box has already.
 function freeName() {
-  const taken = new Set((box ? box.snails : []).map((s2) => s2.name));
+  const taken = new Set(spokenFor());
   const free = NAMES.filter((n) => !taken.has(n));
   return (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
+}
+// Every name already spoken for: the snails in the box and the ones on the
+// shelf of past snails, so the numbering keeps climbing after one is gone.
+function spokenFor() {
+  return (box ? box.snails.map((s2) => s2.name) : [])
+    .concat(store.get('previous', []).map((prev) => prev.name))
+    .filter(Boolean);
+}
+// What to call a snail that turned up on its own. One born here takes a
+// parent's name and the next numeral after it; an egg the keeper laid has
+// nobody to take after.
+function nameFor(s2) {
+  return (s2.parents && heirName(s2.parents, s2.seed, spokenFor())) || freeName();
 }
 
 function remember(s2) {

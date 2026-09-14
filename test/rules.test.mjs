@@ -4,7 +4,8 @@
 // continuous path.
 //   node test/rules.test.mjs
 import assert from 'node:assert/strict';
-import { LIFE_DAYS, OLD_DAYS, EGG_MS, TICK_MS, SEAL_AT, WAKE_AT, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
+import { roman, splitHeir, heirName, NAME_MAX,
+  LIFE_DAYS, OLD_DAYS, EGG_MS, TICK_MS, SEAL_AT, WAKE_AT, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
   MOIST_HOURS, FOOD_HOURS, CALCIUM_HOURS, GRIME_HOURS, NIGHT_ACTIVITY, DAY_ACTIVITY, SPEED_MM_S,
   FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, PET_SHY_MS, retraction, WAKE_STRETCH_MS, stretching, identity, isNight, rnd } from '../js/life.js';
 import { DIARY_KEYS } from '../js/diary.js';
@@ -182,6 +183,56 @@ test('a whole box in one spot piles up rather than sinking into each other', () 
   const lifts = out.map((r) => r.lift).sort((x, y) => x - y);
   assert.deepEqual(lifts, [0, 25, 50]);
   assert.equal(new Set(lifts).size, 3, 'no two snails end up at the same height');
+});
+
+test('numerals count the way a line of monarchs does', () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 9, 10, 14, 40, 90].map(roman),
+    ['I', 'II', 'III', 'IV', 'V', 'IX', 'X', 'XIV', 'XL', 'XC']);
+  assert.equal(roman(0), 'I', 'there is no zeroth of anyone');
+  assert.equal(splitHeir('Majken').n, 1, 'a plain name is the first of its line');
+  assert.equal(splitHeir('Majken').base, 'Majken');
+  assert.deepEqual(splitHeir('Majken III'), { base: 'Majken', n: 3 });
+  assert.deepEqual(splitHeir('Gösta XIV'), { base: 'Gösta', n: 14 });
+  // a name that merely ends in letters that look Roman is not a numeral
+  assert.equal(splitHeir('Ivar').base, 'Ivar', 'Ivar is a name, not a one');
+  assert.equal(splitHeir('Vera').n, 1);
+});
+
+test('a snail born here is named after a parent, one numeral further on', () => {
+  const name = heirName(['Majken', 'Gösta'], 7, ['Majken', 'Gösta']);
+  assert.ok(['Majken II', 'Gösta II'].includes(name), 'got ' + name);
+  // the next one along carries on the count rather than repeating it
+  const second = heirName(['Majken', 'Majken'], 7, ['Majken', 'Majken II']);
+  assert.equal(second, 'Majken III');
+  const third = heirName(['Majken III', ''], 7, ['Majken', 'Majken II', 'Majken III']);
+  assert.equal(third, 'Majken IV', 'the parent being a III does not reset the line');
+});
+
+test('the count remembers snails that are gone, and ignores case', () => {
+  assert.equal(heirName(['Majken', ''], 7, ['majken', 'MAJKEN II']), 'Majken III',
+    'a name is the same name however it was typed');
+  assert.equal(heirName(['Majken', ''], 7, []), 'Majken II',
+    'even with nobody about, a child is the second of its name');
+});
+
+test('an inherited name fits the field, and a nameless parent hands nothing down', () => {
+  const long = heirName(['Trädgårdsmästaren', ''], 7, []);
+  assert.ok(long.length <= NAME_MAX, long + ' is ' + long.length + ' characters');
+  assert.ok(long.endsWith(' II'), 'the numeral survives the trim, the name gives way');
+  assert.equal(heirName([], 7, []), null, 'no parents, nothing to inherit');
+  assert.equal(heirName(['', '  '], 7, []), null, 'nor from two blanks');
+  assert.equal(heirName(null, 7, []), null);
+});
+
+test('the same child always gets the same name', () => {
+  const taken = ['Majken', 'Gösta'];
+  const a = heirName(['Majken', 'Gösta'], 4242, taken);
+  const b = heirName(['Majken', 'Gösta'], 4242, taken);
+  assert.equal(a, b, 'the parent it takes after comes from its seed, not a coin toss');
+  // and different children do not all take after the same parent
+  const names = new Set();
+  for (let seed = 0; seed < 60; seed++) names.add(heirName(['Majken', 'Gösta'], seed, taken));
+  assert.equal(names.size, 2, 'both parents get a look in');
 });
 
 test('the reminder kinds the client sends are the ones the table accepts', () => {

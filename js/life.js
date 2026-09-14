@@ -165,6 +165,61 @@ export function quality(b) {
 export const SHELL_COLORS = ['#c8913f', '#a8701f', '#e0b35e', '#8a5a2b', '#d9a14c', '#b58b5a', '#e8c56a', '#a855f7'];
 export const SHELL_PATTERNS = ['spiral', 'stripes', 'dots'];
 
+// ---- names that run in the family ----
+// A snail born in the box is named after one of its parents, the way a monarch
+// is: Majken, then Majken II, then Majken III. It is only a suggestion — the
+// keeper gets the box and can type whatever they like — but a hatchling turning
+// up with a stranger's name reads wrong when its diary says whose child it is.
+export const NAME_MAX = 16;                // what the name field takes
+
+const ROMAN = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'],
+  [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+export function roman(n) {
+  let v = Math.max(1, Math.floor(n));
+  let out = '';
+  for (const [value, sign] of ROMAN) while (v >= value) { out += sign; v -= value; }
+  return out;
+}
+
+// "Majken III" -> { base: 'Majken', n: 3 }. A name with no numeral is the first.
+export function splitHeir(name) {
+  const m = /^(.*?)\s+([IVXLCDM]+)$/.exec(String(name || '').trim());
+  if (!m || !m[1]) return { base: String(name || '').trim(), n: 1 };
+  const n = romanValue(m[2]);
+  return n > 1 ? { base: m[1], n } : { base: String(name || '').trim(), n: 1 };
+}
+function romanValue(str) {
+  const one = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  let total = 0;
+  for (let i = 0; i < str.length; i++) {
+    const here = one[str[i]], next = one[str[i + 1]] || 0;
+    total += here < next ? -here : here;
+  }
+  return total;
+}
+
+// The name for a snail out of its parents, given every name already spoken for.
+// Returns null when there is nothing to inherit, and the caller picks a name of
+// its own instead.
+export function heirName(parents, seed = 0, taken = []) {
+  const named = (parents || []).filter((n) => n && String(n).trim());
+  if (!named.length) return null;
+  const pick = named[Math.floor(rnd(seed, -4, 7) * named.length)] || named[0];
+  const { base } = splitHeir(pick);
+  if (!base) return null;
+  // the highest numeral anyone with this name has used, living or remembered
+  let highest = 0;
+  for (const other of taken) {
+    const it = splitHeir(other);
+    if (it.base.toLowerCase() === base.toLowerCase()) highest = Math.max(highest, it.n);
+  }
+  const n = Math.max(2, highest + 1);
+  const numeral = roman(n);
+  const room = NAME_MAX - numeral.length - 1;
+  const short = base.length > room ? base.slice(0, Math.max(1, room)).trim() : base;
+  return short + ' ' + numeral;
+}
+
 // Everything about a snail that is decided the moment the egg is laid — unless
 // it was born here, in which case its shell comes from its parents instead.
 export function identity(seed) {

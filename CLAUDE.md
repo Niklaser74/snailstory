@@ -63,6 +63,9 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
   ha funktionen. Går det någonsin att bara en blir gravid är det en bugg.
 - **En snigel parar sig aldrig med sin förälder** (`parentSeeds`). Namn kan bytas, seeds
   kan det inte, så kontrollen går på seed.
+- **En unge ärver namnet som en regent**: `heirName` i `life.js` tar en förälders namn
+  och nästa romerska siffra. Räkningen läser både lådan och hyllan med tidigare sniglar,
+  annars återanvänds ett nummer när någon dött. Ren funktion, testad i `rules.test.mjs`.
 - **Lådans mått bor i `life.js`** (`BOX_W`, `BOX_H`, `LAP`): simuleringen frågar vem som
   står bredvid vem i samma millimeter som vyn ritar i. `view.js` äger bara `placeOnPath`.
 - **Vem som kryper på vem bestäms av `stackLayout` i `view.js`**, en ren funktion som
