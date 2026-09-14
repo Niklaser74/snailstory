@@ -1,6 +1,6 @@
 // Bumped when the shipped files change, so the menu can show what is running.
 // Keep it in step with the sw.js cache version.
-export const APP_VERSION = 'v8';
+export const APP_VERSION = 'v9';
 
 // Reminders only. The game itself needs no server and no account: this is used
 // the moment the player turns notifications on, and never before. The

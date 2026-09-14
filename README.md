@@ -96,9 +96,16 @@ Tre veckor efter det kläcks de. Finns det plats stannar **en** unge kvar och
 trädgården, vilket är vad man gör med åttio sniglar.
 
 Namnet ärvs som hos en kungalängd: efter Majken kommer Majken II, sedan
-Majken III. Räkningen minns även de sniglar som är borta, så en ny unge tar
-aldrig ett nummer som redan varit. Det är bara ett förslag — rutan står öppen,
-och en knapp slumpar fram något helt annat. En unge parar sig aldrig med sin egen
+Majken III. Lådan minns varje namn den använt, de bortgångna inräknade, så en
+ny unge tar aldrig ett nummer som redan varit. Räkningen är per terrarium —
+börjar du om får du kalla en snigel Majken igen. Namnet är bara ett förslag:
+rutan står öppen och en knapp slumpar fram något helt annat.
+
+**En födelse skrivs från båda hållen.** Ungen inleder sin dagbok med vems den
+är, och föräldern som grävde ner kullen får dagen den kom upp i sin:
+
+> **Dag 151.** Kullen som Majken grävde ner kläcktes i natt. Gösta II fick
+> stanna; de andra 70 bar du ut i trädgården. En unge parar sig aldrig med sin egen
 förälder — tre sniglar i en låda blir en familj fort, och den dagbokssidan vill
 ingen läsa.
 

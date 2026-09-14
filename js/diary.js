@@ -29,14 +29,15 @@ const EXTRA = {
 // day is worth mentioning first.
 const MATED = ['mated.1', 'mated.2', 'mated.3'];
 const EGGS = ['eggs.1', 'eggs.2'];
+const HATCHED = ['hatched.1', 'hatched.2'];
 export const FOOD_KEYS = ['lettuce', 'cucumber', 'carrot', 'dandelion', 'apple', 'oats'];
 
 // Every key the diary can ever ask i18n for. test/rules.test.mjs checks them.
 export const DIARY_KEYS = [
   ...Object.values(MAIN).flat(),
   ...Object.values(EXTRA).flat(),
-  ...MATED, ...EGGS,
-  'birthday', 'hatch', 'laid', 'last', 'born', 'dart',
+  ...MATED, ...EGGS, ...HATCHED,
+  'birthday', 'hatch', 'laid', 'last', 'born', 'dart', 'hatchedNone',
 ].map((k) => 'd.' + k).concat(FOOD_KEYS.map((f) => 'food.' + f));
 
 const pick = (list, seed, day, salt) => list[Math.floor(rnd(seed, day, salt) * list.length)];
@@ -54,6 +55,8 @@ export function entryFor(life, rec, lang = 'sv') {
     pets: String(rec.pets || 0),
     mate: rec.mated || '',
     eggs: String(rec.eggs || 0),
+    hatched: String(rec.hatched || 0),
+    kept: rec.kept || '',
     mother: life.parents ? life.parents[0] : '',
     father: life.parents ? life.parents[1] : '',
     ...extra,
@@ -68,17 +71,22 @@ export function entryFor(life, rec, lang = 'sv') {
   }
   if (day >= LIFE_DAYS) return { day, lines: [{ key: 'd.last', params: P() }] };
 
-  // The two days worth writing about. The love dart is a real thing a garden
-  // snail fires at its partner, and it is made of chalk.
+  // The days worth writing about on their own. They can land together — one
+  // clutch coming up while another goes down — so they are collected rather
+  // than returned one at a time. The love dart is a real thing a garden snail
+  // fires at its partner, and it is made of chalk.
+  const notable = [];
   if (rec.mated) {
-    return { day, lines: [
-      { key: 'd.' + pick(MATED, seed, day, 37), params: P() },
-      { key: 'd.dart', params: P() },
-    ] };
+    notable.push({ key: 'd.' + pick(MATED, seed, day, 37), params: P() });
+    notable.push({ key: 'd.dart', params: P() });
   }
-  if (rec.eggs) {
-    return { day, lines: [{ key: 'd.' + pick(EGGS, seed, day, 41), params: P() }] };
+  if (rec.eggs) notable.push({ key: 'd.' + pick(EGGS, seed, day, 41), params: P() });
+  if (rec.hatched) {
+    notable.push(rec.kept
+      ? { key: 'd.' + pick(HATCHED, seed, day, 43), params: P() }
+      : { key: 'd.hatchedNone', params: P() });
   }
+  if (notable.length) return { day, lines: notable };
 
   const sleepShare = (rec.sleep || 0) / 288;
   let group;

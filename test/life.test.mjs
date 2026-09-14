@@ -383,6 +383,63 @@ test('a clutch that hatches into a box with room leaves one young snail behind',
   assert.equal(child.matings, 0, 'and it does not pair up with its own parents');
 });
 
+test('the hatching lands in the parent diary too, not only the child one', () => {
+  const { b, a, c } = pair(300);
+  const child = b.snails.find((s) => s.parents);
+  assert.ok(child, 'somebody was born here');
+
+  // the parent that buried that clutch wrote the day it came up
+  const layer = [a, c].find((s) => s.days.some((d) => d.hatched && d.kept));
+  assert.ok(layer, 'neither parent recorded a hatching');
+  const day = layer.days.find((d) => d.hatched && d.kept);
+  assert.ok(day.hatched >= CLUTCH_MIN, 'and says how many eggs it was');
+  assert.equal(day.kept, child.name, 'and names the one that stayed');
+
+  // the same event from the other side, in the child's own day zero
+  assert.equal(child.days.length ? child.days[0].d : 0, 0);
+  assert.deepEqual([...child.parents].sort(), ['Gösta', 'Majken']);
+
+  // a clutch laid three weeks earlier, so the two days are not the same day
+  const laid = layer.days.find((d) => d.eggs);
+  assert.ok(laid && day.d > laid.d, 'the eggs went down before they came up');
+  assert.ok(day.d - laid.d >= CLUTCH_DAYS - 1 && day.d - laid.d <= CLUTCH_DAYS + 1,
+    'hatched ' + (day.d - laid.d) + ' days after laying, expected about ' + CLUTCH_DAYS);
+});
+
+test('a clutch that finds no room is still written down by the parent', () => {
+  const b = new Box({ born: T0, tz: TZ });
+  b.add({ seed: 1001, name: 'Majken', now: T0 });
+  b.add({ seed: 2002, name: 'Gösta', now: T0 });
+  b.add({ seed: 3003, name: 'Alva', now: T0 });
+  for (let t = T0 + 6 * 3600000; t < T0 + 400 * DAY_MS; t += 12 * 3600000) {
+    b.mist(t); b.feed(t, 'dandelion'); b.chalk(t); b.clean(t);
+  }
+  b.advanceTo(T0 + 400 * DAY_MS);
+  const day = b.snails.flatMap((s) => s.days).find((d) => d.hatched);
+  assert.ok(day, 'a full box still hatched something');
+  assert.equal(day.kept, '', 'and nobody stayed');
+  assert.ok(day.hatched > 0, 'but the count is there to write about');
+});
+
+test('the box remembers the names it has used, so heirs keep counting', () => {
+  const b = fresh(1001, 'Majken');
+  assert.deepEqual(b.usedNames, ['Majken'], 'a name is claimed when the egg is laid');
+  b.add({ seed: 2002, name: 'Gösta', now: T0 });
+  assert.deepEqual(b.usedNames, ['Majken', 'Gösta']);
+  // the departed stay on the list: their heirs must not reuse the numeral
+  b.remove(b.snails[0]);
+  assert.ok(b.usedNames.includes('Majken'), 'a snail that is gone keeps its name spoken for');
+  const twin = Box.fromJSON(JSON.parse(JSON.stringify(b.toJSON())));
+  assert.deepEqual(twin.usedNames, b.usedNames, 'and the list survives a save');
+});
+
+test('young born here are named after a parent, counting up each generation', () => {
+  const { b } = pair(300);
+  const child = b.snails.find((s) => s.parents);
+  assert.ok(/^(Majken|Gösta) II$/.test(child.name), 'got ' + child.name);
+  assert.ok(b.usedNames.includes(child.name), 'and the name is spoken for from then on');
+});
+
 test('a full box sends the young out into the garden instead of overflowing', () => {
   const b = new Box({ born: T0, tz: TZ });
   b.add({ seed: 1001, name: 'Majken', now: T0 });

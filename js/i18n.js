@@ -161,6 +161,9 @@ const dict = {
     'd.dart': 'Sniglar är hermafroditer, så båda väntar ägg nu. Kalken i lådan gick delvis åt till kärlekspilarna.',
     'd.eggs.1': '{name} grävde en grop i jorden och lade {eggs} ägg.',
     'd.eggs.2': '{eggs} ägg ligger nu nedgrävda i ett hörn. {name} täckte över dem och kröp vidare.',
+    'd.hatched.1': 'Kullen som {name} grävde ner kläcktes i natt. {kept} fick stanna; de andra {hatched} bar du ut i trädgården.',
+    'd.hatched.2': 'Jorden rörde sig i morse: {hatched} ägg kläcktes. {kept} blev kvar hos {name}, resten släpptes ut.',
+    'd.hatchedNone': 'Kullen som {name} grävde ner kläcktes. Terrariet var fullt, så alla {hatched} gick ut i trädgården.',
     'd.born': '{name} kröp upp ur jorden i morse, barn till {mother} och {father}. Skalet var genomskinligt och {size} brett.',
 
     // ---------- the numbers ----------
@@ -451,6 +454,9 @@ const dict = {
     'd.dart': 'Snails are hermaphrodites, so both are carrying eggs now. Some of the chalk in the box went into the love darts.',
     'd.eggs.1': '{name} dug a hole in the soil and laid {eggs} eggs.',
     'd.eggs.2': '{eggs} eggs are now buried in a corner. {name} covered them over and crawled on.',
+    'd.hatched.1': '{name}\'s clutch hatched in the night. {kept} stayed; the other {hatched} you carried out to the garden.',
+    'd.hatched.2': 'The soil moved this morning: {hatched} eggs hatched. {kept} stayed with {name}, the rest were let out.',
+    'd.hatchedNone': '{name}\'s clutch hatched. The terrarium was full, so all {hatched} went out into the garden.',
     'd.born': '{name} crawled up out of the soil this morning, child of {mother} and {father}. Its shell was see-through and {size} across.',
 
     'stats.title': 'About {name}',

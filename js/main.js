@@ -228,7 +228,7 @@ function name() { return sel && sel.name ? sel.name : t('start.placeholder'); }
 function refreshAll() {
   if (!box || !box.snails.length) return;
   if (!sel || !box.snails.includes(sel)) sel = box.snails[0];
-  for (const s2 of box.snails) if (!s2.name) s2.name = nameFor(s2);
+  for (const s2 of box.snails) if (!s2.name) s2.name = box.claimName(nameFor(s2));
   const now = Date.now();
   const lang = getLang();
   refreshRow(now);
@@ -438,7 +438,7 @@ $('welcome-dice').addEventListener('click', () => { $('welcome-name').value = fr
 $('welcome-ok').addEventListener('click', () => {
   const e = welcomes.shift();
   if (e && box.snails.includes(e.snail)) {
-    e.snail.name = ($('welcome-name').value || '').trim().slice(0, 16) || nameFor(e.snail);
+    e.snail.name = box.claimName(($('welcome-name').value || '').trim().slice(0, 16)) || nameFor(e.snail);
     sel = e.snail;
   }
   $('welcome').hidden = true;
@@ -454,16 +454,18 @@ function freeName() {
   const free = NAMES.filter((n) => !taken.has(n));
   return (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
 }
-// Every name already spoken for: the snails in the box and the ones on the
-// shelf of past snails, so the numbering keeps climbing after one is gone.
+// Every name this terrarium has spoken for, the departed included — the box
+// keeps the list, so a line of heirs goes on counting after one of them is
+// gone. Deliberately not the shelf of past snails: start a new terrarium and
+// you may call a snail Majken again.
 function spokenFor() {
-  return (box ? box.snails.map((s2) => s2.name) : [])
-    .concat(store.get('previous', []).map((prev) => prev.name))
-    .filter(Boolean);
+  if (!box) return [];
+  return box.usedNames.concat(box.snails.map((s2) => s2.name)).filter(Boolean);
 }
-// What to call a snail that turned up on its own. One born here takes a
-// parent's name and the next numeral after it; an egg the keeper laid has
-// nobody to take after.
+// What to call a snail that turned up with no name of its own. One born here
+// takes a parent's name and the next numeral; an egg the keeper laid has nobody
+// to take after. The box normally names its own young — this is the fallback,
+// and what the dice button falls back to.
 function nameFor(s2) {
   return (s2.parents && heirName(s2.parents, s2.seed, spokenFor())) || freeName();
 }

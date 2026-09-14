@@ -512,6 +512,10 @@ export class Box {
     this.chalks = 0;
     this.snails = [];
     this.clutches = [];             // eggs buried in the soil, waiting
+    // Every name this terrarium has used, the departed included, so a line of
+    // heirs keeps counting up. Scoped to the box on purpose: start a new
+    // terrarium and you may call a snail Majken again.
+    this.usedNames = [];
     this.badges = [];
     this.events = [];
   }
@@ -528,8 +532,14 @@ export class Box {
     });
     s.box = this;
     this.snails.push(s);
+    this.claimName(name);
     if (!quiet) this.events.push({ type: 'laid', snail: s });
     return s;
+  }
+  claimName(name) {
+    const n = String(name || '').trim();
+    if (n && !this.usedNames.includes(n)) this.usedNames.push(n);
+    return n;
   }
   // A snail that has reached the end leaves the box; the keeper is told first.
   remove(snail) {
@@ -648,12 +658,15 @@ export class Box {
   // have ended up anyway.
   hatchClutch(c, i) {
     if (!this.hasRoom()) {
+      this.noteHatch(c, 0, '');
       this.events.push({ type: 'garden', count: c.count, parents: c.parents });
       return;
     }
     const t = this.born + i * TICK_MS;
     const child = this.add({
-      name: '',
+      // named by the family rule here rather than by the page, so the parent's
+      // diary can say who stayed on the day it happened
+      name: heirName(c.parents, c.seed, this.usedNames) || '',
       seed: c.seed,
       now: t - EGG_MS,                                  // born, not an egg: the soil was the egg
       color: c.look.color[rnd(c.seed, i, 81) < 0.5 ? 0 : 1],
@@ -662,7 +675,18 @@ export class Box {
       parentSeeds: c.parentSeeds,
       quiet: true,
     });
+    this.noteHatch(c, 1, child.name);
     this.events.push({ type: 'hatchling', snail: child, count: c.count, parents: c.parents });
+  }
+
+  // The day a clutch comes up belongs in the diary of the snail that buried it.
+  // One birth, two sides of it: the parent writes that they hatched, the young
+  // one writes whose it is.
+  noteHatch(c, kept, name) {
+    const layer = this.snails.find((s) => s.seed === (c.parentSeeds ? c.parentSeeds[0] : null));
+    if (!layer || layer.dead) return;
+    layer.today.hatched = c.count;
+    layer.today.kept = kept ? name : '';
   }
 
   // ---------- what you do to the box ----------
@@ -762,6 +786,7 @@ export class Box {
     const b = new Box({ born: j.born, tz: j.tz });
     for (const k of SAVED_BOX) if (j[k] !== undefined) b[k] = j[k];
     if (!Array.isArray(b.clutches)) b.clutches = [];
+    if (!Array.isArray(b.usedNames)) b.usedNames = [];
     b.snails = (j.snails || []).map((s) => {
       const l = Life.fromJSON(s);
       l.box = b;
@@ -785,6 +810,7 @@ export class Box {
     const l = Life.fromJSON({ ...j, laidAt: j.born, bornTick: 0 });
     l.box = b;
     b.snails = [l];
+    b.claimName(l.name);
     return b;
   }
 }
@@ -823,11 +849,11 @@ const SAVED_SNAIL = ['seed', 'name', 'laidAt', 'bornTick', 'tick', 'size', 'dist
   'matings', 'clutches'];
 
 const SAVED_BOX = ['v', 'born', 'tz', 'tick', 'moisture', 'food', 'calcium', 'grime',
-  'meals', 'mists', 'cleans', 'chalks', 'badges', 'clutches'];
+  'meals', 'mists', 'cleans', 'chalks', 'badges', 'clutches', 'usedNames'];
 
 function dayRecord(d) {
   return { d, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, grew: false, ate: null, asleep: false,
-    size: SIZE_HATCH, moisture: 1, grime: 0, mated: null, eggs: 0 };
+    size: SIZE_HATCH, moisture: 1, grime: 0, mated: null, eggs: 0, hatched: 0, kept: '' };
 }
 
 // True when `child` came out of a clutch `other` helped lay.

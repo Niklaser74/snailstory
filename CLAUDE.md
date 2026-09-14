@@ -64,8 +64,16 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
 - **En snigel parar sig aldrig med sin förälder** (`parentSeeds`). Namn kan bytas, seeds
   kan det inte, så kontrollen går på seed.
 - **En unge ärver namnet som en regent**: `heirName` i `life.js` tar en förälders namn
-  och nästa romerska siffra. Räkningen läser både lådan och hyllan med tidigare sniglar,
-  annars återanvänds ett nummer när någon dött. Ren funktion, testad i `rules.test.mjs`.
+  och nästa romerska siffra. Ren funktion, testad i `rules.test.mjs`.
+- **`Box.usedNames` är namnräkningens minne**, inte hyllan med tidigare sniglar. Den
+  innehåller även de bortgångna, så en linje fortsätter räkna; den är per låda, så ett
+  nytt terrarium får använda namnen igen. Lådan döper sina egna ungar — sidan erbjuder
+  bara att byta.
+- **En födelse skrivs från båda hållen**: ungens dag noll säger vems den är, och
+  `Box.noteHatch` lägger dagen i dagboken hos föräldern som grävde ner kullen.
+- **Dagboken kan ha flera anmärkningsvärda rader samma dygn** — en kull som går ner
+  medan en annan kommer upp. `entryFor` samlar dem i stället för att returnera den
+  första som slår till.
 - **Lådans mått bor i `life.js`** (`BOX_W`, `BOX_H`, `LAP`): simuleringen frågar vem som
   står bredvid vem i samma millimeter som vyn ritar i. `view.js` äger bara `placeOnPath`.
 - **Vem som kryper på vem bestäms av `stackLayout` i `view.js`**, en ren funktion som
