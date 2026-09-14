@@ -49,10 +49,12 @@ och när sidan göms eller stängs (`keepalive`).
   halvan ligger i Vault som `snails_vapid_private` (skapad av Snäckmageddons
   `20260904170000_push.sql`), den publika i `js/config.js`. Byts nyckeln måste
   alla prenumerationer i alla spel göras om.
-- **Kontot.** `js/supa.js` använder medvetet sessionsnyckeln
-  `snackmageddon.session` — samma origin, samma projekt, samma konto. Det är
-  det enda undantaget från regeln att `localStorage`-nycklar prefixas per spel.
-  Har spelaren redan ett konto från Snäckmageddon eller Snäckschack används det.
+- **Kontot.** `js/account.js` är seriens delade klient (ägd av hubben,
+  vendorad med `npm run sync:account`; `js/supa.js` re-exporterar den) och
+  använder sessionsnyckeln `snails.session` — samma origin, samma projekt,
+  samma konto. Det är det enda undantaget från regeln att `localStorage`-nycklar
+  prefixas per spel. Har spelaren ett konto från något annat spel på snails.se
+  används det; koppling och profil sköts på https://snails.se/account/.
 - **`webpush.js`** är en kopia från snailmageddon. Ändra där, kopiera hit.
 
 **Inte** delat: prenumerationerna. Varje spel har sin egen service worker med

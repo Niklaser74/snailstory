@@ -93,8 +93,10 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
   Ny sorts påminnelse: lägg till i `REMINDER_KINDS`, i migrationens check-villkor och i
   `supabase/functions/snailstory-notify/texts.js` — testerna kräver att de tre är överens.
 - **Notistexter hör hemma i `texts.js`, inte i `js/i18n.js`.** En notis skrivs av servern.
-- **Sessionsnyckeln `snackmageddon.session` är medvetet oprefixad** — samma origin,
-  samma projekt, samma konto som resten av serien. Enda undantaget från prefixregeln.
+- **`js/account.js` är seriens delade klient, vendorad från hubben** (`npm run
+  sync:account`; `supa.js` re-exporterar den) — redigera den aldrig här.
+  Sessionsnyckeln `snails.session` är medvetet oprefixad: samma origin, samma
+  projekt, samma konto som resten av serien. Enda undantaget från prefixregeln.
 - **Allt i `push.js` och `supa.js` är best effort.** Spelet ska fungera utan nät, utan
   konto och utan notisrättighet; inget därifrån får kasta in i spelet.
 - `docs-vault/` (Obsidian) och `.claude/` committas aldrig.
