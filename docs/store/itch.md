@@ -53,7 +53,7 @@ tråkig med flit:
 - Det får plats **tre sniglar**. De delar vatten och mat men lever var sitt liv, och möts de på glaset kryper de på varandra
 - Sniglar är hermafroditer, så två fullvuxna kan para sig och **båda** lägger ägg. En unge får stanna och ärver skalfärg, mönster och namn — efter Majken kommer Majken II
 - **Notiser** när ägget kläcks, när snigeln bommar igen skalet, på födelsedagarna och när de tre åren är slut. Även när appen är stängd
-- 22 märken, varav ett tar tre år
+- 26 märken, varav ett tar tre år
 - Fungerar offline, kan installeras som app, inget konto krävs
 - Svenska och engelska
 
@@ -87,7 +87,7 @@ dull on purpose:
 - The terrarium holds **three snails**. They share the water and the food but live their own lives, and when they meet on the glass they climb over each other
 - Snails are hermaphrodites, so two grown ones can mate and **both** lay eggs. One hatchling stays and inherits its shell, its pattern and its name — after Majken comes Majken II
 - **Notifications** when the egg hatches, when the snail seals its shell, on the birthdays, and when the three years are up. Even with the app closed
-- 22 badges, one of which takes three years
+- 26 badges, one of which takes three years
 - Works offline, installs as an app, no account needed
 - Swedish and English
 
