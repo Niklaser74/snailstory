@@ -16,6 +16,8 @@ Byggstegsfritt PWA: ES-moduler, Canvas, inga npm-beroenden. Bor på
 | Tester | `npm test` |
 | Hämta renderare från Snäckmageddon | `npm run sync:game` (default `../dev-snailmageddon`) |
 | Ikoner (SVG → PNG) | `npm run icons` (lånar hubbens Playwright) |
+| Delningsbild | `npm run og:image` → `icons/og-1200x630.png` |
+| Pressbilder | `npm run shots` → `docs/store/` |
 | Produktionslayout | i hubbrepot: `PORT=8081 node scripts/serve.mjs --mount /snailstory=../dev-snailstory` |
 
 ## Struktur
@@ -32,6 +34,7 @@ js/supa.js      anonymt Supabase-konto och RPC, inget bibliotek
 js/game/        KOPIOR från snailmageddon — rör aldrig, kör sync:game
 test/           handrullade tester utan ramverk, node:assert
 supabase/       migration och edge-funktion för påminnelserna — se dess README
+docs/store/     butikstext och pressbilder — se dess README
 ```
 
 ## Konventioner
@@ -102,6 +105,9 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
   kontot är seriens och gäller över enheter. Därför bär påminnelserna ett `device`-handtag:
   en synk ersätter bara den egna webbläsarens rader. Allt som skrivs per konto måste fråga
   sig om två lådor kan slåss om det.
+- **Bilder genereras, de fotograferas inte.** `scripts/pose.mjs` stagar terrariet med
+  fasta seeds och en fast omgång skötsel, så `npm run og:image` och `npm run shots` ger
+  samma bilder varje gång. Ändra vad som syns i poseringen, aldrig i bilden efteråt.
 - **Notiser levereras per konto, inte per enhet** — datorsnigeln hörs av på telefonen, och
   det är avsiktligt.
 - **Ta aldrig bort en RPC-signatur i samma steg som klienten byter till en ny.** Spelet är

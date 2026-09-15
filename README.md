@@ -29,6 +29,8 @@ Femte spelet i [snigelserien](https://snails.se) från Knackpot. Live på
 | Tester | `npm test` |
 | Uppdatera `js/game/` från Snäckmageddon | `npm run sync:game` |
 | Ikoner | `npm run icons` |
+| Delningsbild | `npm run og:image` |
+| Pressbilder | `npm run shots` |
 
 Byggstegsfritt: ren HTML, CSS och ES-moduler, inga beroenden. Spelet behöver
 varken server eller konto — det enda undantaget är påminnelser, som är
@@ -50,6 +52,8 @@ js/main.js      laddning, knappar, paneler, notiser, PWA
 js/game/        KOPIOR från snailmageddon — rör aldrig, kör sync:game
 test/           paths, rules, life, diary, push, sw
 supabase/       migration och edge-funktion för påminnelserna
+docs/store/     butikstext och pressbilder — se dess README
+scripts/pose.mjs  staging för bilderna: samma terrarium varje gång
 ```
 
 ## Så hänger det ihop
