@@ -79,6 +79,11 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
 - **Vem som kryper på vem bestäms av `stackLayout` i `view.js`**, en ren funktion som
   testas i `rules.test.mjs`. Den som kommer bakifrån klättrar. Tröskeln är ungefär ett
   skals bredd: överlappande fötter är naturligt, krockande skal är det inte.
+- **Fredagsdiscot får inte påverka något.** `isDisco` styr ljus, hatt och en dagboksrad
+  och ingenting annat: ingen fart, ingen tillväxt, inga behov. Blir det någonsin en
+  spelmekanik har skämtet gått förlorat.
+- **Vyns zoom är en transform runt hela scenen**, inte en omräkning av `px()/py()`.
+  Allt ritas i scenkoordinater; `applyZoom` och `snailAt` är de enda som vet om den.
 - **Dvalan fryser snigeln, inte lådan.** I `Life.live()` returnerar den sovande grenen innan
   något växer eller kryper; `Box.decay()` fortsätter oavsett, för avdunstning bryr sig inte.
 - **Dagboken lagrar inga meningar**, bara dygnets siffror i `days[]`. Texterna genereras

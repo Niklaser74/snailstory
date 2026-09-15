@@ -37,7 +37,10 @@
 </header>
 
 <main id="stage" hidden>
-  <canvas id="terrarium" data-i18n-aria="aria.box" aria-label="Terrariet"></canvas>
+  <div class="box-wrap">
+    <canvas id="terrarium" data-i18n-aria="aria.box" aria-label="Terrariet"></canvas>
+    <button id="zoom-out" class="zoom-out" hidden data-i18n="zoom.out">Visa hela lådan</button>
+  </div>
   <p id="mood" class="mood"></p>
 
   <div id="facts" class="facts">
@@ -237,6 +240,7 @@
     <p data-i18n="help.1"></p>
     <p data-i18n="help.2"></p>
     <p data-i18n="help.3"></p>
+    <p data-i18n="help.4b"></p>
     <p data-i18n="help.4"></p>
     <p data-i18n="help.5"></p>
     <div class="actions"><button id="help-close" class="btn primary" data-i18n="help.close">Stäng</button></div>

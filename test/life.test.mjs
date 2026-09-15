@@ -177,6 +177,24 @@ test('three years replays in well under a second, with a full box', () => {
 
 // ---------- three to a terrarium ----------
 
+test('the box remembers what was last put in, and the diary notes a Friday out', () => {
+  const b = fresh();
+  assert.equal(b.served, 'lettuce', 'a new box starts with a leaf in it');
+  b.feed(T0 + 3600000, 'cucumber');
+  assert.equal(b.served, 'cucumber');
+  b.feed(T0 + 7200000, 'inte-en-mat');
+  assert.equal(b.served, 'lettuce', 'something that is not food falls back to the leaf');
+  assert.equal(Box.fromJSON(JSON.parse(JSON.stringify(b.toJSON()))).served, 'lettuce', 'and it survives a save');
+
+  // a snail that was out on a Friday evening has it in that day's record
+  const c = new Box({ born: T0, tz: TZ });
+  c.add({ seed: 4, name: 'Doris', now: T0 });
+  for (let t = T0 + 6 * 3600000; t < T0 + 21 * DAY_MS; t += 8 * 3600000) { c.mist(t); c.feed(t, 'lettuce'); }
+  c.advanceTo(T0 + 21 * DAY_MS);
+  const fridays = c.snails[0].days.filter((d) => d.disco).length;
+  assert.ok(fridays >= 2 && fridays <= 3, 'three weeks is two or three Fridays, got ' + fridays);
+});
+
 test('the box holds three, and says no to a fourth', () => {
   const b = fresh();
   assert.equal(b.room, SNAIL_MAX - 1);

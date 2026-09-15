@@ -125,6 +125,21 @@ inne, och de vecklas ut jämnt under åtta sekunder utan paus först — till
 skillnad från klappet, som är en ryck. Blir den klappad mitt i utvecklingen
 åker de in helt igen.
 
+**Maten ser ut som det den är.** De sex sorterna har var sin silhuett — en
+gurkskiva med kärnor, en morot med blast, ett flikigt maskrosblad, en krullad
+äppelskalsspiral, en hög havregryn — och den som ligger i lådan krymper allt
+eftersom den äts upp. På en telefon måste de gå att skilja på i ögonvrån.
+
+**Tryck på en snigel för att se den närmare.** Hela scenen åker in mot den och
+följer med när den kryper; den blir samtidigt den valda, så knapparna och
+dagboken handlar om just den. En knapp längst ner tar dig ut igen.
+
+**Fredag kväll är det disco**, mellan sex och nio i terrariets egen tid. Två
+ljus går runt i lådan och sniglarna får partyhatt. Ingenting i simuleringen
+bryr sig: de växer inte fortare, rör sig inte i takt och har inte bett om det.
+En igenbommad snigel missar alltihop. Dagboken nämner det dagen efter, som en
+andra mening.
+
 **Sniglar är nattdjur.** Mellan nio på kvällen och sex på morgonen rör den sig;
 på dagen sitter den still. Fönstret bakom lådan visar den riktiga himlen, så det
 syns direkt vilken tid på dygnet spelet befinner sig i.

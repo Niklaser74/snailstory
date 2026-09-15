@@ -182,6 +182,24 @@ $('a-feed').addEventListener('click', () => {
 });
 $('feed-close').addEventListener('click', () => { $('feed').hidden = true; });
 
+// ---------- looking closer ----------
+// The box is 30 cm wide on a phone screen, so a snail is a few millimetres of
+// it. Tapping one moves the scene in on it and selects it; tapping the glass
+// again, or the chip, goes back to the whole box.
+$('terrarium').addEventListener('click', (e) => {
+  if (!box || !box.snails.length || !view) return;
+  const r = $('terrarium').getBoundingClientRect();
+  const hit = view.snailAt(box, Date.now(), e.clientX - r.left, e.clientY - r.top);
+  if (hit && hit !== view.watching()) { sel = hit; view.watch(hit); }
+  else view.watch(null);
+  refreshZoom();
+  refreshAll();
+});
+$('zoom-out').addEventListener('click', () => { view.watch(null); refreshZoom(); });
+function refreshZoom() {
+  $('zoom-out').hidden = !(view && view.watching());
+}
+
 // ---------- events ----------
 function handleEvents() {
   let sealed = 0;
@@ -265,7 +283,11 @@ function refreshRow(now) {
       const c = document.createElement('canvas');
       c.width = 56; c.height = 42; c.setAttribute('aria-hidden', 'true');
       b.append(c, document.createElement('span'));
-      b.addEventListener('click', () => { sel = s2; refreshAll(); });
+      b.addEventListener('click', () => {
+        sel = s2;
+        if (view && view.watching()) view.watch(s2);   // already looking close: follow this one
+        refreshAll();
+      });
       row.append(b);
     }
     if (box.hasRoom()) {
@@ -400,6 +422,7 @@ function closeDeath() {
     remember(s2);
     box.remove(s2);
     if (sel === s2) sel = box.snails[0] || null;
+    if (view && view.watching() === s2) { view.watch(null); refreshZoom(); }
   }
   $('death').hidden = true;
   save();
@@ -496,6 +519,8 @@ function startOver({ keepPrevious = false } = {}) {
   sel = null;
   deaths.length = 0;
   welcomes.length = 0;
+  if (view) view.watch(null);
+  $('zoom-out').hidden = true;
   for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome']) $(id).hidden = true;
   $('name-input').value = '';
   showStart();

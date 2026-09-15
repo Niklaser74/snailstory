@@ -147,6 +147,23 @@ export function isNight(t, tzMinutes) {
   const h = gardenHour(t, tzMinutes);
   return h >= NIGHT_FROM || h < NIGHT_TO;
 }
+// The weekday in the terrarium, 0 = Sunday, on the same shifted clock as the hour.
+export function gardenDay(t, tzMinutes) {
+  return new Date(t - tzMinutes * 60000).getUTCDay();
+}
+
+// ---- Friday evening ----
+// Three hours a week the terrarium has a disco. Nothing in the simulation turns
+// on it: the snails do not move faster, grow better or care in the slightest.
+// It is lights and hats, and it is over by nine.
+export const DISCO_DAY = 5;                // Friday
+export const DISCO_FROM = 18;
+export const DISCO_TO = 21;
+export function isDisco(t, tzMinutes) {
+  if (gardenDay(t, tzMinutes) !== DISCO_DAY) return false;
+  const h = gardenHour(t, tzMinutes);
+  return h >= DISCO_FROM && h < DISCO_TO;
+}
 
 // How well shells are being built right now, 0–1, from the box's condition.
 // Water and food carry it; calcium and a clean box are multipliers, because a
@@ -312,6 +329,9 @@ export class Life {
     }
 
     this.awakeTicks++;
+    // out of its shell on a Friday evening, which the diary will mention. A
+    // sealed snail misses it, which is its own fault.
+    if (!this.today.disco && isDisco(t, b.tz)) this.today.disco = true;
     if (b.moisture <= SEAL_AT || b.food <= SEAL_AT) {
       this.asleep = true;
       this.events.push({ type: 'sealed', dry: b.moisture <= SEAL_AT });
@@ -507,6 +527,7 @@ export class Box {
     this.calcium = 1;
     this.grime = 0;
     this.meals = {};                // food id -> times served
+    this.served = 'lettuce';        // what is lying in the box right now
     this.mists = 0;
     this.cleans = 0;
     this.chalks = 0;
@@ -704,6 +725,7 @@ export class Box {
     this.moisture = clamp01(this.moisture + e.moisture);
     this.calcium = clamp01(this.calcium + e.calcium);
     this.meals[type] = (this.meals[type] || 0) + 1;
+    this.served = FOOD_EFFECT[type] ? type : 'lettuce';
     for (const s of this.snails) { s.today.meals++; s.today.ate = type; }
     this.wakeAll(now);
     return this;
@@ -849,11 +871,11 @@ const SAVED_SNAIL = ['seed', 'name', 'laidAt', 'bornTick', 'tick', 'size', 'dist
   'matings', 'clutches'];
 
 const SAVED_BOX = ['v', 'born', 'tz', 'tick', 'moisture', 'food', 'calcium', 'grime',
-  'meals', 'mists', 'cleans', 'chalks', 'badges', 'clutches', 'usedNames'];
+  'meals', 'served', 'mists', 'cleans', 'chalks', 'badges', 'clutches', 'usedNames'];
 
 function dayRecord(d) {
   return { d, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, grew: false, ate: null, asleep: false,
-    size: SIZE_HATCH, moisture: 1, grime: 0, mated: null, eggs: 0, hatched: 0, kept: '' };
+    size: SIZE_HATCH, moisture: 1, grime: 0, mated: null, eggs: 0, hatched: 0, kept: '', disco: false };
 }
 
 // True when `child` came out of a clutch `other` helped lay.

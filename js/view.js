@@ -8,7 +8,7 @@
 // the odometer is one lap of the glass — no separate position to keep, save or
 // get out of step with the simulation.
 import { drawSnail } from './game/snails.js';
-import { gardenHour, isNight, BOX_W, BOX_H, BOX_CORNER, LAP, CLUTCH_DAYS, TICK_MS, DAY_MS } from './life.js';
+import { gardenHour, isNight, isDisco, BOX_W, BOX_H, BOX_CORNER, LAP, CLUTCH_DAYS, TICK_MS, DAY_MS } from './life.js';
 
 // The box's size is a fact about the terrarium, not about the drawing, so it
 // lives in life.js — the simulation asks who is next to whom in the same
@@ -20,6 +20,7 @@ const SOIL = 34;                   // depth of soil, mm
 const INK = '#3a2210';
 // the scene is 1,45 box heights tall: wall above, box, table below
 const SCENE = 1.25;   // the least room the scene needs: wall, box, table
+const ZOOM = 2.6;     // close enough to read a snail's face on a phone
 
 // the rounded-rectangle path, walked by arc length
 const STRAIGHT_X = BOX_W - 2 * CORNER;
@@ -105,6 +106,12 @@ export class View {
     this.ctx = canvas.getContext('2d');
     this.particles = [];
     this.trails = new Map();      // snail seed -> { mm, until }: slime dries a minute after it stops
+    // Zoom: the terrarium is a 30 cm box on a phone screen, so a snail is small.
+    // Tapping one moves the whole scene in on it; everything is drawn in scene
+    // coordinates and this transform sits over all of it.
+    this.focus = null;            // the snail being watched, or null for the whole box
+    this.zoom = 1;
+    this.at = null;               // scene point currently at the middle of the canvas
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.ro = new ResizeObserver(() => this.layout());
     this.ro.observe(canvas);
@@ -114,11 +121,18 @@ export class View {
   layout() {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = Math.min(2, devicePixelRatio || 1);
+    const was = { w: this.cw, h: this.ch };
     this.cw = Math.max(1, rect.width);
     this.ch = Math.max(1, rect.height);
     this.canvas.width = Math.round(this.cw * dpr);
     this.canvas.height = Math.round(this.ch * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // The zoom centre is in scene pixels, so a canvas that changed size
+    // invalidates it: drop it and let the next frame snap to the middle rather
+    // than drift there from stale coordinates. Only on a real change — setting
+    // canvas.width above re-triggers the resize observer, and nulling it every
+    // time would leave nothing to ease.
+    if (was.w !== this.cw || was.h !== this.ch) this.at = null;
     // The scene is the box plus a band of wall above it and a strip of table
     // below, and it is centred in whatever canvas it is given. Anything outside
     // it is left clear so the page's own dark room shows through.
@@ -142,7 +156,10 @@ export class View {
     const ctx = this.ctx;
     const hour = gardenHour(now, box.tz) + (new Date(now).getMinutes()) / 60;
     const night = isNight(now, box.tz);
+    const disco = isDisco(now, box.tz);
     ctx.clearRect(0, 0, this.cw, this.ch);
+    ctx.save();
+    this.applyZoom(box, now);
     this.room(hour, night);
     this.glassBack(box);
     this.soil(box);
@@ -151,7 +168,94 @@ export class View {
     for (const s of box.snails) if (!s.hatched(now)) this.egg(now, s);
     for (const r of this.pile(box, now)) this.snail(r.life, now, r);
     this.glassFront(box, night);
+    if (disco) this.discoLights(now);
     this.drawParticles(1 / 60);
+    ctx.restore();
+  }
+
+  // ---------- zoom ----------
+  // Watch one snail, or the whole box when given nothing.
+  watch(snail) { this.focus = snail || null; }
+  watching() { return this.focus; }
+
+  // Where the middle of the canvas should be, in scene pixels.
+  zoomTarget(box, now) {
+    if (!this.focus || !box.snails.includes(this.focus)) return { z: 1, x: this.cw / 2, y: this.ch / 2 };
+    const r = this.pile(box, now).find((it) => it.life === this.focus);
+    if (!r) return { z: 1, x: this.cw / 2, y: this.ch / 2 };
+    const p = placeOnPath(r.along);
+    const lift = (r.lift || 0) * this.k;
+    // sit a little above the snail: the shell is drawn upwards from its foot
+    const z = ZOOM;
+    const x = this.px(p.x) + p.nx * lift;
+    const y = this.py(p.y) + p.ny * lift - this.visualSize(this.focus) * this.k * 0.5;
+    // do not pan past the edges of the scene
+    return {
+      z,
+      x: Math.min(Math.max(x, this.cw / (2 * z)), this.cw - this.cw / (2 * z)),
+      y: Math.min(Math.max(y, this.ch / (2 * z)), this.ch - this.ch / (2 * z)),
+    };
+  }
+
+  applyZoom(box, now) {
+    const want = this.zoomTarget(box, now);
+    if (!this.at) this.at = { x: want.x, y: want.y };
+    // eased, because a jump cut in a game this slow would be violent. Reduced
+    // motion gets the cut instead, which is the honest trade.
+    const ease = this.reduced ? 1 : 0.14;
+    this.zoom += (want.z - this.zoom) * ease;
+    this.at.x += (want.x - this.at.x) * ease;
+    this.at.y += (want.y - this.at.y) * ease;
+    if (Math.abs(this.zoom - want.z) < 0.002) this.zoom = want.z;
+    const ctx = this.ctx;
+    ctx.translate(this.cw / 2, this.ch / 2);
+    ctx.scale(this.zoom, this.zoom);
+    ctx.translate(-this.at.x, -this.at.y);
+  }
+
+  // A tap on the canvas, in canvas pixels: which snail is under it, if any.
+  snailAt(box, now, cx, cy) {
+    const x = (cx - this.cw / 2) / this.zoom + (this.at ? this.at.x : this.cw / 2);
+    const y = (cy - this.ch / 2) / this.zoom + (this.at ? this.at.y : this.ch / 2);
+    let best = null, bestD = Infinity;
+    for (const r of this.pile(box, now)) {
+      if (!r.life || !r.life.hatched(now)) continue;
+      const p = placeOnPath(r.along);
+      const lift = (r.lift || 0) * this.k;
+      const sx = this.px(p.x) + p.nx * lift;
+      const sy = this.py(p.y) + p.ny * lift;
+      const reach = Math.max(18, this.visualSize(r.life) * this.k * 0.9);
+      const d = Math.hypot(sx - x, sy - y);
+      if (d < reach && d < bestD) { best = r.life; bestD = d; }
+    }
+    return best;
+  }
+
+  // ---------- Friday evening ----------
+  // Three hours a week, and no more than that: a slow wash of colour over the
+  // glass and two lights going round. Nothing flashes, because the joke is that
+  // the snails are not going to react either way.
+  discoLights(now) {
+    if (this.reduced) return;
+    const ctx = this.ctx;
+    const t = now / 1000;
+    const x0 = this.px(0), y0 = this.py(0), w = this.bw, h = this.bh;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 2; i++) {
+      const a = t * (0.35 + i * 0.12) + i * Math.PI;
+      const cx = x0 + w * (0.5 + 0.38 * Math.cos(a));
+      const cy = y0 + h * (0.42 + 0.3 * Math.sin(a * 1.3));
+      const r = Math.min(w, h) * 0.42;
+      const hue = (t * 22 + i * 140) % 360;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, 'hsla(' + Math.round(hue) + ', 85%, 60%, 0.20)');
+      g.addColorStop(1, 'hsla(' + Math.round(hue) + ', 85%, 60%, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
 
   // ---------- the room behind the glass ----------
@@ -256,28 +360,12 @@ export class View {
     const k = this.k;
     const ground = this.py(BOX_H - SOIL);
 
-    // the lettuce leaf shrinks as the food runs out
+    // whatever was put in last, shrinking as it is eaten
     const f = b.food;
     if (f > 0.02) {
-      const x = this.px(70), y = ground + k * 1.5;
-      const w = k * 26 * (0.35 + 0.65 * f), h = k * 13 * (0.4 + 0.6 * f);
       ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(-0.12);
-      ctx.fillStyle = '#6cc25a';
-      ctx.strokeStyle = '#3f8f3b';
-      ctx.lineWidth = Math.max(1, k * 0.5);
-      ctx.beginPath(); ctx.ellipse(0, -h * 0.5, w, h, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-      ctx.beginPath(); ctx.moveTo(-w * 0.8, -h * 0.5); ctx.lineTo(w * 0.8, -h * 0.55); ctx.stroke();
-      // bites out of the edge once it is half eaten
-      if (f < 0.7) {
-        ctx.fillStyle = '#6e4324';
-        for (let i = 0; i < 3; i++) {
-          const a = -0.6 + i * 0.7;
-          ctx.beginPath(); ctx.arc(Math.cos(a) * w * 0.9, -h * 0.5 + Math.sin(a) * h * 0.9, k * 3 * (1 - f), 0, Math.PI * 2); ctx.fill();
-        }
-      }
+      ctx.translate(this.px(70), ground + k * 1.5);
+      this.food(b.served || 'lettuce', f, k);
       ctx.restore();
     }
 
@@ -323,6 +411,115 @@ export class View {
     ctx.restore();
   }
 
+  // What is lying in the box: six foods that have to be told apart at a glance
+  // on a phone, so each one gets its own silhouette rather than a tinted blob.
+  // All of them stand on the origin and shrink with what is left of the meal.
+  food(kind, f, k) {
+    const ctx = this.ctx;
+    const g = 0.35 + 0.65 * f;                 // how much of it is left
+    ctx.lineWidth = Math.max(1, k * 0.45);
+    ctx.lineJoin = 'round';
+    if (kind === 'cucumber') {
+      // a slice on its side: pale rind, wet middle, seeds
+      const r = k * 11 * g;
+      ctx.fillStyle = '#3f8f3b'; ctx.strokeStyle = '#2f6f2b';
+      ctx.beginPath(); ctx.ellipse(0, -r * 0.5, r, r * 0.55, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#d8ecc0';
+      ctx.beginPath(); ctx.ellipse(0, -r * 0.5, r * 0.78, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#b6d69a';
+      for (const dx of [-0.4, 0, 0.4]) {
+        ctx.beginPath(); ctx.ellipse(dx * r, -r * 0.5, r * 0.09, r * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (kind === 'carrot') {
+      // a stub of carrot lying down, greens at the fat end
+      const L = k * 24 * g, w = k * 5 * g;
+      ctx.fillStyle = '#e08a2e'; ctx.strokeStyle = '#b4661d';
+      ctx.beginPath();
+      ctx.moveTo(-L * 0.5, -w); ctx.quadraticCurveTo(L * 0.1, -w * 1.15, L * 0.5, -w * 0.15);
+      ctx.quadraticCurveTo(L * 0.1, w * 0.1, -L * 0.5, 0);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      for (let i = 0; i < 3; i++) {
+        const x = -L * 0.3 + i * L * 0.28;
+        ctx.beginPath(); ctx.moveTo(x, -w * 0.9); ctx.lineTo(x + k * 0.6, -w * 0.15); ctx.stroke();
+      }
+      ctx.fillStyle = '#4c9a3f'; ctx.strokeStyle = '#3f8f3b';
+      for (const a of [-0.5, -0.1, 0.3]) {
+        ctx.beginPath();
+        ctx.moveTo(-L * 0.5, -w * 0.6);
+        ctx.quadraticCurveTo(-L * 0.75, -w * 1.6 + a * k * 3, -L * 0.95, -w * 2.2 + a * k * 6);
+        ctx.lineTo(-L * 0.85, -w * 1.9 + a * k * 6); ctx.quadraticCurveTo(-L * 0.7, -w * 1.2, -L * 0.5, -w * 0.2);
+        ctx.closePath(); ctx.fill();
+      }
+    } else if (kind === 'dandelion') {
+      // one jagged leaf, the tooth shape the plant is named for
+      const L = k * 26 * g, w = k * 7 * g;
+      ctx.fillStyle = '#5aa842'; ctx.strokeStyle = '#3f8f3b';
+      ctx.beginPath();
+      ctx.moveTo(-L * 0.5, 0);
+      for (let i = 0; i <= 5; i++) {
+        const x = -L * 0.5 + (i / 5) * L;
+        ctx.lineTo(x + L * 0.06, -w * (i % 2 ? 0.45 : 1));
+      }
+      ctx.lineTo(L * 0.5, 0);
+      for (let i = 5; i >= 0; i--) {
+        const x = -L * 0.5 + (i / 5) * L;
+        ctx.lineTo(x, -w * (i % 2 ? 0.1 : 0.35));
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath(); ctx.moveTo(-L * 0.5, -w * 0.25); ctx.lineTo(L * 0.5, -w * 0.25); ctx.stroke();
+    } else if (kind === 'apple') {
+      // a curl of peel: red outside, pale inside
+      const r = k * 9 * g;
+      ctx.strokeStyle = '#c0392b';
+      ctx.lineWidth = Math.max(1.5, k * 2.2 * g);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, -r, r, 0.4, Math.PI * 1.7);
+      ctx.stroke();
+      ctx.strokeStyle = '#f6e7c8';
+      ctx.lineWidth = Math.max(0.8, k * 0.9 * g);
+      ctx.beginPath(); ctx.arc(0, -r, r * 0.92, 0.5, Math.PI * 1.6); ctx.stroke();
+      ctx.lineCap = 'butt';
+    } else if (kind === 'oats') {
+      // a small heap of grains, flattening as they go
+      const w = k * 13 * g;
+      ctx.fillStyle = '#d9c187'; ctx.strokeStyle = '#b39a5f';
+      ctx.beginPath(); ctx.ellipse(0, -k * 1.6 * g, w, k * 3.4 * g, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#efdcae';
+      for (let i = 0; i < 7; i++) {
+        const a = -2.6 + i * 0.36;
+        ctx.save();
+        ctx.translate(Math.cos(a) * w * 0.62, -k * 1.6 * g + Math.sin(a) * k * 2.6 * g);
+        ctx.rotate(a);
+        ctx.beginPath(); ctx.ellipse(0, 0, k * 1.9 * g, k * 0.8 * g, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+    } else {
+      // lettuce: the one it started with, a ruffled leaf
+      const w = k * 26 * g, h = k * 13 * g;
+      ctx.save();
+      ctx.rotate(-0.12);
+      ctx.fillStyle = '#6cc25a'; ctx.strokeStyle = '#3f8f3b';
+      ctx.beginPath(); ctx.ellipse(0, -h * 0.5, w, h, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.beginPath(); ctx.moveTo(-w * 0.8, -h * 0.5); ctx.lineTo(w * 0.8, -h * 0.55); ctx.stroke();
+      ctx.restore();
+    }
+    // bites out of it once it is half gone, whatever it is
+    if (f < 0.7) {
+      ctx.fillStyle = '#6e4324';
+      const reach = k * 11 * g;
+      for (let i = 0; i < 3; i++) {
+        const a = -0.6 + i * 0.7;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * reach * 1.6, -reach * 0.5 + Math.sin(a) * reach * 0.6, k * 2.6 * (1 - f), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   // Eggs buried in the soil: a shallow dip with a huddle of them in it, showing
   // a little more as the three weeks pass and the soil is nudged aside.
   clutches(box, now) {
@@ -353,6 +550,7 @@ export class View {
   // Everyone's place on the lap, with the pile worked out. A dead shell lies on
   // the soil and is not part of it.
   pile(box, now) {
+    const party = isDisco(now, box.tz);
     const by = new Map();
     const items = [];
     for (const s of box.snails) {
@@ -371,8 +569,8 @@ export class View {
       });
     }
     const live = items.filter((it) => !it.dead);
-    const laid = stackLayout(live).map((r) => ({ ...r, life: by.get(r.id) }));
-    const gone = items.filter((it) => it.dead).map((it) => ({ ...it, lift: 0, riding: false, life: by.get(it.id) }));
+    const laid = stackLayout(live).map((r) => ({ ...r, life: by.get(r.id), party }));
+    const gone = items.filter((it) => it.dead).map((it) => ({ ...it, lift: 0, riding: false, life: by.get(it.id), party: false }));
     return gone.concat(laid);
   }
 
@@ -440,7 +638,8 @@ export class View {
         walking: !this.reduced && life.movingAt(now) && !life.shy(now),
         // reduced motion gets the same envelope, snapped rather than eased
         retract: this.reduced ? (pulled > 0.5 ? 1 : 0) : pulled,
-        look: { shell: life.pattern, hat: 'none' },
+        // the hat is the series' own party cone, free to everyone
+        look: { shell: life.pattern, hat: place.party ? 'party' : 'none' },
       });
     }
     ctx.restore();

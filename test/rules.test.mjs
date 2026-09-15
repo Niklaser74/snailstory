@@ -4,7 +4,7 @@
 // continuous path.
 //   node test/rules.test.mjs
 import assert from 'node:assert/strict';
-import { roman, splitHeir, heirName, NAME_MAX,
+import { roman, splitHeir, heirName, NAME_MAX, isDisco, gardenDay, DISCO_DAY, DISCO_FROM, DISCO_TO,
   LIFE_DAYS, OLD_DAYS, EGG_MS, TICK_MS, SEAL_AT, WAKE_AT, SIZE_HATCH, SIZE_ADULT, SIZE_MAX,
   MOIST_HOURS, FOOD_HOURS, CALCIUM_HOURS, GRIME_HOURS, NIGHT_ACTIVITY, DAY_ACTIVITY, SPEED_MM_S,
   FOODS, FOOD_EFFECT, BADGES, SHELL_COLORS, REMINDER_KINDS, PET_SHY_MS, retraction, WAKE_STRETCH_MS, stretching, identity, isNight, rnd } from '../js/life.js';
@@ -183,6 +183,24 @@ test('a whole box in one spot piles up rather than sinking into each other', () 
   const lifts = out.map((r) => r.lift).sort((x, y) => x - y);
   assert.deepEqual(lifts, [0, 25, 50]);
   assert.equal(new Set(lifts).size, 3, 'no two snails end up at the same height');
+});
+
+test('the disco is Friday evening in the terrarium, and nowhere else in the week', () => {
+  const TZ = -60;                                   // Sweden in winter
+  // 2026-09-11 is a Friday; the clock the box keeps is UTC shifted by tz
+  const at = (day, hour, min = 0) => Date.UTC(2026, 8, day, hour, min) - 60 * 60000;
+  assert.equal(gardenDay(at(11, 19), TZ), DISCO_DAY, 'the eleventh is the Friday');
+  assert.equal(isDisco(at(11, 18), TZ), true, 'it starts on the hour');
+  assert.equal(isDisco(at(11, 20, 59), TZ), true, 'and runs to the end of the twentieth hour');
+  assert.equal(isDisco(at(11, 17, 59), TZ), false, 'not a minute before six');
+  assert.equal(isDisco(at(11, 21), TZ), false, 'and it is over at nine');
+  for (const day of [7, 8, 9, 10, 12, 13]) {
+    assert.equal(isDisco(at(day, 19), TZ), false, 'no disco on day ' + day);
+  }
+  assert.ok(DISCO_TO - DISCO_FROM === 3, 'three hours, which is enough');
+  // the hour is the terrarium's own, not the machine's
+  assert.notEqual(isDisco(at(11, 19), TZ), isDisco(at(11, 19), TZ + 8 * 60),
+    'a box in another timezone parties at another moment');
 });
 
 test('numerals count the way a line of monarchs does', () => {

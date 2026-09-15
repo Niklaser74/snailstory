@@ -30,13 +30,18 @@ const EXTRA = {
 const MATED = ['mated.1', 'mated.2', 'mated.3'];
 const EGGS = ['eggs.1', 'eggs.2'];
 const HATCHED = ['hatched.1', 'hatched.2'];
+// Friday evening, when the lights come on for three hours. A second sentence,
+// never a first: the disco is not the most interesting thing about the day, and
+// saying so is the joke.
+const DISCO = ['disco.1', 'disco.2', 'disco.3', 'disco.4'];
+EXTRA.disco = DISCO;
 export const FOOD_KEYS = ['lettuce', 'cucumber', 'carrot', 'dandelion', 'apple', 'oats'];
 
 // Every key the diary can ever ask i18n for. test/rules.test.mjs checks them.
 export const DIARY_KEYS = [
   ...Object.values(MAIN).flat(),
   ...Object.values(EXTRA).flat(),
-  ...MATED, ...EGGS, ...HATCHED,
+  ...MATED, ...EGGS, ...HATCHED, ...DISCO,
   'birthday', 'hatch', 'laid', 'last', 'born', 'dart', 'hatchedNone',
 ].map((k) => 'd.' + k).concat(FOOD_KEYS.map((f) => 'food.' + f));
 
@@ -108,6 +113,8 @@ export function entryFor(life, rec, lang = 'sv') {
   if ((rec.grime ?? 0) > 0.75) extras.push(['dirty', {}]);
   if (rec.grew && group !== 'sealed' && (rec.size ?? 0) > 4) extras.push(['grew', {}]);
   if (group !== 'sealed') extras.push(['still', {}]);
+  // a Friday it was out for: worth a line, and more likely than the others
+  if (rec.disco && group !== 'sealed') extras.push(['disco', {}], ['disco', {}]);
   if (extras.length) {
     const [kind, params] = extras[Math.floor(rnd(seed, day, 23) * extras.length)];
     lines.push({ key: 'd.' + pick(EXTRA[kind], seed, day, 29), params: P(params), foodKey: params.food });

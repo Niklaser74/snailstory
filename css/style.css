@@ -61,7 +61,13 @@ button { font: inherit; }
 
 /* ---------- the screen ---------- */
 #stage { position: fixed; inset: calc(50px + var(--safe-t)) 0 0; display: flex; flex-direction: column; padding: 0 10px calc(8px + var(--safe-b)); }
-#terrarium { flex: 1 1 auto; width: 100%; min-height: 160px; max-height: 62vh; display: block; }
+.box-wrap { position: relative; flex: 1 1 auto; min-height: 160px; max-height: 62vh; display: flex; }
+#terrarium { flex: 1 1 auto; width: 100%; display: block; cursor: pointer; }
+/* Only there while zoomed in, so the way back is never a guess. */
+.zoom-out { position: absolute; left: 50%; transform: translateX(-50%); bottom: 8px; z-index: 3;
+  border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12px; font-weight: 700;
+  background: rgba(20, 15, 10, 0.62); color: #fff; cursor: pointer; }
+.zoom-out:hover { background: rgba(20, 15, 10, 0.78); }
 .mood { margin: auto 0 0; padding-top: 3px; text-align: center; color: #e9e2d2; font-weight: 700; font-size: 14px; min-height: 1.2em; }
 
 .facts { display: flex; gap: 6px; margin: 6px 0 0; }
