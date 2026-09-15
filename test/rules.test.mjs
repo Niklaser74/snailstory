@@ -274,6 +274,38 @@ test('a reminder key says which snail, so three do not overwrite each other', ()
   assert.ok(sql.includes("r->>'snail'"), 'the insert has to read the snail from the row');
 });
 
+test('two boxes on one account keep their own schedules', () => {
+  // The box is in localStorage, the account is shared across devices as soon as
+  // it is linked. Without the device in the key, the last device to sync wipes
+  // the other one's reminders — silently, because replacing is the design.
+  const sql = read('supabase/migrations/20260915200000_snailstory_reminders_per_device.sql');
+  assert.ok(sql.includes('add primary key (user_id, device, kind, years, snail)'),
+    'the device has to be part of the key');
+  assert.ok(sql.includes('where user_id = auth.uid() and device = dev'),
+    'a sync must only replace the rows of the browser doing the syncing');
+  assert.ok(sql.includes('drop function if exists public.snailstory_set_reminders(jsonb, text)'),
+    'the old two-argument form has to go, or PostgREST sees two overloads');
+  // ...but a reminder still reaches every subscription the account has, so the
+  // snail on the laptop can say so on the phone
+  assert.ok(/where s\.user_id = t\.user_id/.test(sql),
+    'delivery goes by account, not by device');
+  assert.ok(!/s\.device/.test(sql), 'subscriptions are not filtered by device');
+});
+
+test('the client sends a device handle, and it is only a handle', () => {
+  const js = read('js/push.js');
+  assert.ok(js.includes('p_device: deviceId()'), 'the schedule has to say which browser it is from');
+  assert.ok(js.includes("localStorage.getItem(DEVICE_KEY)"), 'and it is kept per browser');
+  assert.ok(js.includes("p_device: deviceId()") && js.includes('snailstory_clear_reminders'),
+    'clearing is per browser too, or one box would wipe the other');
+  // nothing identifying goes into it: read only the function that makes one
+  const body = js.slice(js.indexOf('function deviceId()'));
+  const made = body.slice(0, body.indexOf('\n}'));
+  assert.ok(/Math\.random/.test(made), 'the handle is drawn at random');
+  assert.ok(!/userAgent|platform|language|screen|timeZone|hardwareConcurrency/.test(made),
+    'and never built from anything about the machine');
+});
+
 test('no secret was committed with the migration', () => {
   const sql = read('supabase/migrations/20260912190000_snailstory_reminders.sql');
   assert.ok(sql.includes('vault.decrypted_secrets'), 'the cron key is read from the vault at run time');

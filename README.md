@@ -157,6 +157,16 @@ det som förfallit. Prognosen för dvalan kör den riktiga simuleringen framåt 
 en slängkopia, så den kan inte glida ifrån verkligheten — och listan ersätts
 varje gång du varit inne, så den är alltid senaste ordet.
 
+**Lådan syncar inte.** Den bor i webbläsarens `localStorage`, så en telefon och
+en dator håller två skilda terrarier med var sina sniglar. Det är med flit:
+spelet ska fungera utan konto.
+
+Kontot delas däremot av hela serien, och är det kopplat till Google gäller det
+på alla enheter. Därför bär varje påminnelse ett handtag för webbläsaren den
+kom från, så att de två lådorna får var sitt schema i stället för att skriva
+över varandra. Notisen går ändå ut till alla enheter kontot har — snigeln på
+datorn får berätta om sig själv på telefonen, och namnet säger vilken det är.
+
 Påminnelser är det enda spelet använder nätet till. Väljer du bort dem görs
 inte ett enda anrop. Slår du på dem skapas ett osynligt konto utan namn,
 e-post eller lösenord, och stänger du av dem raderas både prenumerationen och

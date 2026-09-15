@@ -90,7 +90,7 @@ sitt eget scope, och en Snail Story-notis får aldrig hamna hos Snäckmageddons
 | Tabell | Vad |
 | --- | --- |
 | `snailstory_push_subscriptions` | endpoint och nycklar per webbläsare, max tio per konto (äldsta faller bort) |
-| `snailstory_reminders` | en rad per sak att säga: `(user_id, kind, years, snail)` som nyckel, `due_at`, språk och snigelns namn |
+| `snailstory_reminders` | en rad per sak att säga: `(user_id, device, kind, years, snail)` som nyckel, `due_at`, språk och snigelns namn |
 
 `kind` är `hatch`, `sealed`, `birthday` eller `death`. `years` är 0 utom för
 födelsedagarna, som annars hade krockat med varandra i nyckeln. `snail` är ett
@@ -100,6 +100,18 @@ annars skrivit över varandra utan att något fel syntes.
 
 **Kläckning, födelsedag och slut är per snigel; dvalan är lådans.** Behoven
 delas, så alla vakna sniglar bommar igen samma tick — en påminnelse, inte tre.
+
+**`device` finns för att lådan inte syncar men kontot gör det.** Terrariet bor i
+`localStorage`, alltså ett per webbläsare; kontot är seriens och delas över
+enheter så snart det kopplats till Google. Utan enheten i nyckeln hade de två
+lådorna delat på en enda kalender, och eftersom en synk *ersätter* allt hade den
+enhet som öppnade appen sist tyst raderat den andras påminnelser. Handtaget är
+ett slumptal per webbläsare och säger ingenting om den.
+
+**Leveransen delas medvetet inte på samma sätt.** `take_due` hämtar
+prenumerationerna per konto, inte per enhet, så en påminnelse från datorns låda
+når också telefonen. Notisen namnger snigeln, så det framgår vilken låda den
+kommer ifrån.
 
 Båda tabellerna har RLS på och alla rättigheter borttagna för `anon` och
 `authenticated` — allt går via security definer-funktioner som filtrerar på
@@ -111,8 +123,8 @@ Båda tabellerna har RLS på och alla rättigheter borttagna för `anon` och
 | --- | --- | --- |
 | `snailstory_save_push(endpoint, p256dh, auth, lang)` | authenticated | sparar den här webbläsarens prenumeration |
 | `snailstory_remove_push(endpoint)` | authenticated | tar bort den |
-| `snailstory_set_reminders(rows, lang)` | authenticated | ersätter hela schemat, max sexton rader, bara tider i framtiden. Varje rad bär sin egen snigel och sitt eget namn |
-| `snailstory_clear_reminders()` | authenticated | tömmer schemat |
+| `snailstory_set_reminders(rows, lang, device)` | authenticated | ersätter **den här enhetens** schema, max sexton rader, bara tider i framtiden. Varje rad bär sin egen snigel och sitt eget namn |
+| `snailstory_clear_reminders(device)` | authenticated | tömmer den enhetens schema; utan enhet hela kontots |
 | `snailstory_take_due(limit)` | service_role | hämtar och **raderar** allt som förfallit, med prenumerationerna i samma svar |
 | `snailstory_cron_key()` | service_role | den delade hemligheten ur Vault |
 

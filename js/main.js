@@ -582,9 +582,11 @@ async function refreshNotifyButton() {
     return;
   }
   if (push.permission() === 'denied') {
+    // The browser will not ask again once it has been told no, so the app
+    // cannot fix this — say where the switch is instead of repeating the pitch.
     b.textContent = t('menu.notifyBlocked');
     b.disabled = true;
-    $('notify-hint').textContent = t('menu.notifyNote');
+    $('notify-hint').textContent = t('menu.notifyUnblock');
     return;
   }
   remindersOn = await push.active();

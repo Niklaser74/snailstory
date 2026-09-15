@@ -98,6 +98,12 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
   Ny sorts påminnelse: lägg till i `REMINDER_KINDS`, i migrationens check-villkor och i
   `supabase/functions/snailstory-notify/texts.js` — testerna kräver att de tre är överens.
 - **Notistexter hör hemma i `texts.js`, inte i `js/i18n.js`.** En notis skrivs av servern.
+- **Lådan syncar inte, kontot delas.** Terrariet bor i `localStorage` (ett per webbläsare);
+  kontot är seriens och gäller över enheter. Därför bär påminnelserna ett `device`-handtag:
+  en synk ersätter bara den egna webbläsarens rader. Allt som skrivs per konto måste fråga
+  sig om två lådor kan slåss om det.
+- **Notiser levereras per konto, inte per enhet** — datorsnigeln hörs av på telefonen, och
+  det är avsiktligt.
 - **`js/account.js` är seriens delade klient, vendorad från hubben** (`npm run
   sync:account`; `supa.js` re-exporterar den) — redigera den aldrig här.
   Sessionsnyckeln `snails.session` är medvetet oprefixad: samma origin, samma

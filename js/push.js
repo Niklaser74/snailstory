@@ -16,6 +16,27 @@ const ROW_MAX = 16;
 // from its box-mates' in the server's key.
 const snailKey = (s) => ((s.seed >>> 0).toString(36));
 
+// And one for this browser. The box lives in localStorage, so a phone and a
+// laptop are two different terrariums — but the account is shared across both
+// as soon as it is linked to Google. Without a handle per browser the two boxes
+// share one schedule slot on the server and quietly overwrite each other.
+//
+// It identifies a browser, nothing else: no name, no fingerprint, and it never
+// leaves the reminder rows.
+const DEVICE_KEY = 'snailstory.device';
+function deviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch {
+    return 'ingen';        // private mode: one shared slot is better than none
+  }
+}
+
 function keyBytes(b64) {
   const s = b64.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (b64.length % 4)) % 4);
   const bin = atob(s);
@@ -65,12 +86,13 @@ export const push = {
     return 'on';
   },
 
-  // Stop reminding: drop the browser's subscription and everything queued for
-  // this account. The account itself stays, so turning them back on is one tap.
+  // Stop reminding: drop this browser's subscription and the schedule it put
+  // there. Another device's box keeps its own. The account stays, so turning
+  // them back on is one tap.
   async disable() {
     const sub = await this.current();
     try { if (sub) await online.rpc('snailstory_remove_push', { p_endpoint: sub.toJSON().endpoint }); } catch { /* best effort */ }
-    try { await online.rpc('snailstory_clear_reminders'); } catch { /* best effort */ }
+    try { await online.rpc('snailstory_clear_reminders', { p_device: deviceId() }); } catch { /* best effort */ }
     try { if (sub) await sub.unsubscribe(); } catch { /* best effort */ }
   },
 
@@ -90,14 +112,17 @@ export const push = {
       snail: r.snail ? snailKey(r.snail) : '',
       name: (r.snail && r.snail.name ? r.snail.name : '').slice(0, 24),
     }));
-    await online.rpc('snailstory_set_reminders', { p_rows: rows, p_lang: lang }, { keepalive });
+    await online.rpc('snailstory_set_reminders', {
+      p_rows: rows, p_lang: lang, p_device: deviceId(),
+    }, { keepalive });
     return true;
   },
 
-  // Nothing left to remind about: the snail was given up on, or replaced.
+  // Nothing left to remind about in THIS box: it was given up on, or replaced.
+  // Other devices' boxes are none of its business.
   async clearSchedule() {
     if (!online.signedIn()) return;
-    try { await online.rpc('snailstory_clear_reminders'); } catch { /* best effort */ }
+    try { await online.rpc('snailstory_clear_reminders', { p_device: deviceId() }); } catch { /* best effort */ }
   },
 
   // The subscription belongs to this service worker scope, and the browser can
