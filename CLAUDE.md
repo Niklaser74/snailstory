@@ -104,6 +104,10 @@ supabase/       migration och edge-funktion för påminnelserna — se dess READ
   sig om två lådor kan slåss om det.
 - **Notiser levereras per konto, inte per enhet** — datorsnigeln hörs av på telefonen, och
   det är avsiktligt.
+- **Ta aldrig bort en RPC-signatur i samma steg som klienten byter till en ny.** Spelet är
+  en PWA med cache-first service worker: första öppningen efter en deploy kör fortfarande
+  gammal kod. Lägg till den nya signaturen, låt den gamla ligga kvar en release, och låt
+  den nya sopa undan det den gamla skrev. `rules.test.mjs` vaktar just det här fallet.
 - **`js/account.js` är seriens delade klient, vendorad från hubben** (`npm run
   sync:account`; `supa.js` re-exporterar den) — redigera den aldrig här.
   Sessionsnyckeln `snails.session` är medvetet oprefixad: samma origin, samma

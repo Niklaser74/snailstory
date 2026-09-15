@@ -306,6 +306,21 @@ test('the client sends a device handle, and it is only a handle', () => {
     'and never built from anything about the machine');
 });
 
+test('an RPC signature change does not strand the clients already out there', () => {
+  // The game is a PWA with a cache-first service worker, so the first open
+  // after a deploy still runs the previous code. Dropping the old signature in
+  // the same step as the client changes leaves every player silently broken
+  // for a session — which is exactly what happened.
+  const compat = read('supabase/migrations/20260915220000_snailstory_set_reminders_compat.sql');
+  assert.ok(compat.includes('snailstory_set_reminders(p_rows jsonb, p_lang text)'),
+    'the old two-argument form has to exist again');
+  assert.ok(compat.includes("public.snailstory_set_reminders(p_rows, p_lang, '')"),
+    'and forward to the device-aware one');
+  // an old and a new client must not leave two sets of rows side by side
+  assert.ok(compat.includes("delete from public.snailstory_reminders where user_id = auth.uid() and device = ''"),
+    'the device-aware form has to sweep away what an older client left behind');
+});
+
 test('no secret was committed with the migration', () => {
   const sql = read('supabase/migrations/20260912190000_snailstory_reminders.sql');
   assert.ok(sql.includes('vault.decrypted_secrets'), 'the cron key is read from the vault at run time');

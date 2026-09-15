@@ -137,6 +137,11 @@ går den satsen förlorad. För snigelpåminnelser är *högst en gång* rätt v
 - **Texterna i notiserna** bor i `supabase/functions/snailstory-notify/texts.js`,
   inte i spelets `js/i18n.js`. En notis skrivs av servern. Filen är vanlig JS
   utan importer så att både Deno och `test/push.test.mjs` läser samma källa.
+- **Byt aldrig en RPC-signatur utan skal.** Klienten är en PWA med cache-first service
+  worker, så första öppningen efter en deploy kör gammal kod. `snailstory_set_reminders`
+  finns därför i både två- och treargumentsform; den gamla vidarebefordrar med tom enhet,
+  och den nya raderar rader utan enhet så att de två inte ger dubbla notiser. PostgREST
+  väljer rätt överlagring på argumentnamnen — provat i drift.
 - **Radering.** Stänger spelaren av påminnelser raderas både prenumerationen och
   schemat. Lägger hen ett nytt ägg töms schemat och fylls på nytt.
 - **Cron-loggen städar sig själv.** `net._http_response` har `pg_net.ttl` 6 timmar,
