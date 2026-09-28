@@ -18,6 +18,7 @@ Byggstegsfritt PWA: ES-moduler, Canvas, inga npm-beroenden. Bor på
 | Ikoner (SVG → PNG) | `npm run icons` (lånar hubbens Playwright) |
 | Delningsbild | `npm run og:image` → `icons/og-1200x630.png` |
 | Pressbilder | `npm run shots` → `docs/store/` |
+| Snigel för hand (till någon som tappat sin) | `npm run snail -- --name Majken --days 74` |
 | Produktionslayout | i hubbrepot: `PORT=8081 node scripts/serve.mjs --mount /snailstory=../dev-snailstory` |
 
 ## Struktur
@@ -30,6 +31,7 @@ js/view.js      terrariet: rummet, fönstrets himmel, lådan, snigeln på sin ba
 js/main.js      laddning, de fem knapparna, paneler, notiser, PWA
 js/i18n.js      sv/en inklusive alla dagbokens meningar (nycklar 'd.*')
 js/push.js      påminnelser: prenumerera och lämna snigelns schema hos servern
+js/backup.js    säkerhetskopian: packa, läsa och vägra. Noll DOM
 js/supa.js      anonymt Supabase-konto och RPC, inget bibliotek
 js/game/        KOPIOR från snailmageddon — rör aldrig, kör sync:game
 test/           handrullade tester utan ramverk, node:assert
@@ -108,6 +110,14 @@ docs/store/     butikstext och pressbilder — se dess README
 - **Bilder genereras, de fotograferas inte.** `scripts/pose.mjs` stagar terrariet med
   fasta seeds och en fast omgång skötsel, så `npm run og:image` och `npm run shots` ger
   samma bilder varje gång. Ändra vad som syns i poseringen, aldrig i bilden efteråt.
+- **Säkerhetskopian är oformaterad JSON, med flit.** En fil någon ska spara i tre år ska gå
+  att öppna, läsa, mejla till sig själv och laga för hand. Base64 eller gzip hade sparat två
+  tredjedelar av en dryg hundra kilobyte och köpt ingenting för det.
+- **En inläsning ersätter hela tillståndet** — lådan, hyllan med tidigare sniglar och
+  `savedAt` — och går alltid genom `backup.parse`, som bygger lådan för att bevisa att filen
+  går att läsa och hellre vägrar än läser in halvt. En halvt återställd låda i stället för en
+  levande är värre än ingen säkerhetskopia alls. Nytt fält i sparfilen: inget behöver göras,
+  kopian är hela `box.toJSON()` — men bumpa `FILE_VERSION` om formatet slutar gå att läsa bakåt.
 - **Notiser levereras per konto, inte per enhet** — datorsnigeln hörs av på telefonen, och
   det är avsiktligt.
 - **Ta aldrig bort en RPC-signatur i samma steg som klienten byter till en ny.** Spelet är

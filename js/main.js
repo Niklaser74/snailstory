@@ -7,6 +7,7 @@ import { View } from './view.js';
 import * as fmt from './fmt.js';
 import { t, setLang, getLang, detectLang, NAMES } from './i18n.js';
 import { push } from './push.js';
+import * as backup from './backup.js';
 import { setMuted, isMuted, unlockAudio, sfx } from './game/audio.js';
 import { APP_VERSION } from './config.js';
 
@@ -521,7 +522,7 @@ function startOver({ keepPrevious = false } = {}) {
   welcomes.length = 0;
   if (view) view.watch(null);
   $('zoom-out').hidden = true;
-  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome']) $(id).hidden = true;
+  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome', 'backup', 'restore']) $(id).hidden = true;
   $('name-input').value = '';
   showStart();
 }
@@ -556,9 +557,135 @@ document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('clic
 }));
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  for (const id of ['help', 'reset', 'feed', 'add', 'welcome', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
+  for (const id of ['help', 'restore', 'backup', 'reset', 'feed', 'add', 'welcome', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
     if (!$(id).hidden) { $(id).hidden = true; return; }
   }
+});
+
+// ---------- the copy you keep yourself ----------
+// The box lives in this browser and nowhere else, so the only honest safety net
+// is a file the keeper holds. Everything here is the keeper's own doing: nothing
+// is uploaded, and reading a copy back always asks first, because it replaces a
+// living terrarium.
+function refreshBackupWhen() {
+  const at = store.get('backupAt', 0);
+  $('backup-when').textContent = at
+    ? t('backup.when', { ago: fmt.span(Math.max(60000, Date.now() - at), getLang()) })
+    : t('backup.never');
+}
+$('m-backup').addEventListener('click', () => {
+  refreshBackupWhen();
+  $('backup-save').disabled = !box;
+  $('backup-copy').disabled = !box;
+  $('backup-text').value = '';
+  $('backup-paste').open = false;
+  $('backup').hidden = false;
+});
+$('backup-close').addEventListener('click', () => { $('backup').hidden = true; });
+
+function currentBackup() {
+  return backup.pack({
+    box, previous: store.get('previous', []), savedAt: Date.now(), appVersion: APP_VERSION,
+  });
+}
+// Saved through a blob and a download link. Inside an installed app on iOS that
+// can be refused without a word, which is why the text route exists next to it.
+$('backup-save').addEventListener('click', () => {
+  if (!box) return;
+  save();
+  const file = currentBackup();
+  try {
+    const url = URL.createObjectURL(new Blob([backup.serialize(file)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = backup.fileName(file);
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    store.set('backupAt', Date.now());
+    refreshBackupWhen();
+    toast(t('backup.saved'));
+  } catch {
+    toast(t('backup.saveFailed'));
+  }
+});
+$('backup-copy').addEventListener('click', async () => {
+  if (!box) return;
+  save();
+  try {
+    await navigator.clipboard.writeText(backup.serialize(currentBackup()));
+    store.set('backupAt', Date.now());
+    refreshBackupWhen();
+    toast(t('backup.copied'));
+  } catch {
+    toast(t('backup.copyFailed'));
+  }
+});
+
+// ---------- reading a copy back ----------
+$('backup-load').addEventListener('click', () => { $('backup-file').value = ''; $('backup-file').click(); });
+$('backup-file').addEventListener('change', async () => {
+  const f = $('backup-file').files && $('backup-file').files[0];
+  if (!f) return;
+  try { offerRestore(await f.text()); } catch { toast(t('backup.err.unreadable')); }
+});
+$('backup-paste-go').addEventListener('click', () => { offerRestore($('backup-text').value); });
+
+let pending = null;      // a parsed copy waiting for the keeper to say yes
+function offerRestore(text) {
+  let parsed;
+  try {
+    parsed = backup.parse(text);
+  } catch (e) {
+    toast(t(`backup.err.${e && e.code ? e.code : 'unreadable'}`));
+    return;
+  }
+  pending = parsed;
+  const s = backup.summary(parsed);
+  const when = s.savedAt ? new Date(s.savedAt).toLocaleDateString(getLang() === 'sv' ? 'sv-SE' : 'en-GB') : '?';
+  $('restore-body').textContent = s.count > 1
+    ? t('restore.bodyMany', { n: String(s.count), names: s.names.join(', '), days: String(s.days), when })
+    : t('restore.body', { name: s.names[0] || '?', days: String(s.days), when });
+  // Replacing a box is the one thing here that destroys something, so say what
+  // is about to be lost by name rather than in general.
+  $('restore-cost').textContent = box && box.snails.length
+    ? t('restore.cost', { names: box.snails.map((s2) => s2.name).join(', ') })
+    : t('restore.costEmpty');
+  $('restore').hidden = false;
+}
+$('restore-no').addEventListener('click', () => { pending = null; $('restore').hidden = true; });
+$('restore-yes').addEventListener('click', () => {
+  if (!pending) { $('restore').hidden = true; return; }
+  const p = pending;
+  pending = null;
+  $('restore').hidden = true;
+  $('backup').hidden = true;
+
+  // The old box's reminders belonged to the old box. Drop them before the new
+  // one arrives, or the server keeps a calendar for a snail that is gone.
+  push.clearSchedule().catch(() => {});
+
+  store.set('box', p.box);
+  store.set('savedAt', p.savedAt || Date.now());
+  // The shelf of departed snails comes from the copy too, and replaces the one
+  // standing here — a copy is a moment to go back to, and a snail who is alive
+  // again in the box must not also be listed among the departed.
+  store.set('previous', p.previous.slice(-10));
+  store.del('life');
+
+  // Load it the way a fresh page load would, so the restored snail is caught up
+  // to now through exactly the same path — including the away panel and any
+  // hatching, death or seal it slept through since the copy was taken.
+  box = null;
+  sel = null;
+  deaths.length = 0;
+  welcomes.length = 0;
+  if (view) view.watch(null);
+  $('zoom-out').hidden = true;
+  for (const id of ['menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome', 'death']) $(id).hidden = true;
+  load();
+  toast(t('restore.done'));
 });
 
 // ---------- reminders ----------

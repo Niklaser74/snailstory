@@ -31,6 +31,7 @@ Femte spelet i [snigelserien](https://snails.se) från Knackpot. Live på
 | Ikoner | `npm run icons` |
 | Delningsbild | `npm run og:image` |
 | Pressbilder | `npm run shots` |
+| Snigel för hand | `npm run snail -- --name Majken --days 74` |
 
 Byggstegsfritt: ren HTML, CSS och ES-moduler, inga beroenden. Spelet behöver
 varken server eller konto — det enda undantaget är påminnelser, som är
@@ -46,6 +47,7 @@ js/diary.js     en dagbokspost per dygn, hämtad ur dygnets sparade siffror
 js/view.js      terrariet på canvas: rummet, fönstret, lådan, snigeln
 js/fmt.js       millimeter, dygn och år som en snigelskötare säger dem
 js/i18n.js      sv/en, inklusive alla dagbokens meningar
+js/backup.js    säkerhetskopian: packa, läsa och vägra
 js/push.js      påminnelser: prenumerera, och lämna snigelns schema hos servern
 js/supa.js      minimal Supabase-klient: anonymt konto och RPC, inget bibliotek
 js/main.js      laddning, knappar, paneler, notiser, PWA

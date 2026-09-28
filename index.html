@@ -227,6 +227,7 @@
       <button id="m-close" class="btn primary" data-i18n="menu.look">Titta till snigeln</button>
       <button id="m-help" class="btn secondary" data-i18n="menu.help">Så funkar det</button>
       <button id="m-notify" class="btn secondary" data-i18n="menu.notify">Påminn mig</button>
+      <button id="m-backup" class="btn secondary" data-i18n="menu.backup">Säkerhetskopia</button>
       <button id="m-install" class="btn secondary" hidden data-i18n="menu.install">Installera app</button>
       <button id="m-reset" class="btn secondary danger" data-i18n="menu.reset">Börja om med nytt ägg</button>
     </div>
@@ -251,6 +252,45 @@
     <p data-i18n="help.4"></p>
     <p data-i18n="help.5"></p>
     <div class="actions"><button id="help-close" class="btn primary" data-i18n="help.close">Stäng</button></div>
+  </div>
+</div>
+
+<!-- the copy you keep yourself -->
+<div id="backup" class="overlay" hidden>
+  <div class="panel">
+    <h2 data-i18n="backup.title">Säkerhetskopia</h2>
+    <p class="why" data-i18n="backup.text"></p>
+    <p id="backup-when" class="hint"></p>
+    <div class="actions">
+      <button id="backup-save" class="btn primary" data-i18n="backup.save">Spara en kopia</button>
+      <button id="backup-copy" class="btn secondary" data-i18n="backup.copy">Kopiera som text</button>
+      <button id="backup-load" class="btn secondary" data-i18n="backup.load">Läs in en kopia</button>
+      <button id="backup-close" class="btn secondary" data-i18n="backup.close">Stäng</button>
+    </div>
+    <input id="backup-file" type="file" accept="application/json,.json" hidden>
+    <details id="backup-paste">
+      <summary data-i18n="backup.pasteOpen">Klistra in texten i stället</summary>
+      <label class="field">
+        <span data-i18n="backup.pasteLabel">Kopian som text</span>
+        <textarea id="backup-text" rows="4" autocomplete="off" spellcheck="false"></textarea>
+      </label>
+      <div class="actions">
+        <button id="backup-paste-go" class="btn secondary" data-i18n="backup.pasteGo">Läs in texten</button>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- reading a copy back over a living terrarium -->
+<div id="restore" class="overlay" hidden>
+  <div class="panel small">
+    <h2 data-i18n="restore.title">Läsa in kopian?</h2>
+    <p id="restore-body"></p>
+    <p id="restore-cost" class="why"></p>
+    <div class="actions">
+      <button id="restore-no" class="btn primary" data-i18n="restore.no">Nej, behåll lådan</button>
+      <button id="restore-yes" class="btn secondary danger" data-i18n="restore.yes">Läs in kopian</button>
+    </div>
   </div>
 </div>
 
