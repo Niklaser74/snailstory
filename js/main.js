@@ -582,6 +582,16 @@ $('m-backup').addEventListener('click', () => {
   $('backup').hidden = false;
 });
 $('backup-close').addEventListener('click', () => { $('backup').hidden = true; });
+// The start screen has no top bar, so somebody who lost their snail and holds a
+// copy would otherwise have no way in at all — which is the whole point of this.
+$('start-backup').addEventListener('click', () => {
+  refreshBackupWhen();
+  $('backup-save').disabled = true;
+  $('backup-copy').disabled = true;
+  $('backup-text').value = '';
+  $('backup-paste').open = true;
+  $('backup').hidden = false;
+});
 
 function currentBackup() {
   return backup.pack({

@@ -124,6 +124,11 @@ button { font: inherit; }
 .btn.danger { color: var(--danger); }
 .btn:hover { filter: brightness(1.05); }
 .hint { min-height: 1.2em; margin: 10px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+/* a button that reads as a line of text: the way back in for somebody who has a
+   copy but no snail, which must not look like a sixth thing to press */
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--muted);
+  text-decoration: underline; cursor: pointer; }
+.linkish:hover { color: var(--ink); }
 footer { margin-top: 14px; font-size: 12px; color: var(--muted); text-align: center; }
 footer a { color: inherit; }
 .why { font-size: 14px; color: var(--muted); line-height: 1.45; }
