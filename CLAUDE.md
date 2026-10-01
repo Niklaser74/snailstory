@@ -32,6 +32,7 @@ js/main.js      laddning, de fem knapparna, paneler, notiser, PWA
 js/i18n.js      sv/en inklusive alla dagbokens meningar (nycklar 'd.*')
 js/push.js      påminnelser: prenumerera och lämna snigelns schema hos servern
 js/backup.js    säkerhetskopian: packa, läsa och vägra. Noll DOM
+js/egg.js       äggkoden mellan två terrarier: koda, avkoda och vägra. Noll DOM
 js/supa.js      anonymt Supabase-konto och RPC, inget bibliotek
 js/game/        KOPIOR från snailmageddon — rör aldrig, kör sync:game
 test/           handrullade tester utan ramverk, node:assert
@@ -118,6 +119,22 @@ docs/store/     butikstext och pressbilder — se dess README
   går att läsa och hellre vägrar än läser in halvt. En halvt återställd låda i stället för en
   levande är värre än ingen säkerhetskopia alls. Nytt fält i sparfilen: inget behöver göras,
   kopian är hela `box.toJSON()` — men bumpa `FILE_VERSION` om formatet slutar gå att läsa bakåt.
+- **Ägg kan ges bort, sniglar kan det inte.** Det som byts mellan spelare är överskottet
+  ur en kull — allt utom en unge gick ändå ut i trädgården. Ett ägg bär släkt, färg och
+  mönster men **ingen dagbok**, så ingens treåriga snigel kan dupliceras, och eftersom
+  äggen är gratis finns ingen knapphet att vakta: ingen server behövs, koden fungerar
+  offline. Vill någon flytta ett *levande* djur är det en kopia, inte ett byte, så länge
+  inte kontot äger snigeln.
+- **En gåvounge är inte född här.** `Life.gift` skiljer dem åt, och märket `born` kräver
+  `!s.gift`. Nya märken som handlar om vad dina egna sniglar gjort måste fråga sig samma
+  sak, annars går de att vinna med en kod någon annan skrivit.
+- **Äggkoden är kodad, till skillnad från sparfilen.** Den lever i minuterna mellan två
+  chattmeddelanden och ingen läser den; där väger det tyngre att en avhuggen kod vägras
+  än att den går att laga för hand. Kontrollsumman finns mot tappade tecken, inte mot fusk
+  — vem som helst kan skriva en egen kod, och det gör ingenting.
+- **Mottagaren lottar vilken förälder ungen brås på**, inte givaren. Koden bär båda
+  färgerna och båda mönstren; `receiveEgg` drar med samma regel som en kull som kläcks
+  hemma. Givaren ska inte kunna se vad hen skickade.
 - **Notiser levereras per konto, inte per enhet** — datorsnigeln hörs av på telefonen, och
   det är avsiktligt.
 - **Ta aldrig bort en RPC-signatur i samma steg som klienten byter till en ny.** Spelet är
@@ -144,7 +161,8 @@ docs/store/     butikstext och pressbilder — se dess README
 spelar upp det, så tre år gamla sniglar går att titta på direkt.
 `window.snailstory.add('Namn')` lägger ett ägg till.
 `window.snailstory.raise(dagar)` spolar tillbaka och spelar upp med skötsel två
-gånger om dygnet — enda sättet att se en vuxen, parande låda utan att vänta ett
+gånger om dygnet — **inte idempotent**, varje anrop drar tillbaka lådan ytterligare
+en gång, så ladda om mellan försöken — enda sättet att se en vuxen, parande låda utan att vänta ett
 år. `.box` är lådan, `.sel` den valda snigeln.
 
 ## Innan du är klar

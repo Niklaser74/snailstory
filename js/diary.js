@@ -42,7 +42,7 @@ export const DIARY_KEYS = [
   ...Object.values(MAIN).flat(),
   ...Object.values(EXTRA).flat(),
   ...MATED, ...EGGS, ...HATCHED, ...DISCO,
-  'birthday', 'hatch', 'laid', 'last', 'born', 'dart', 'hatchedNone',
+  'birthday', 'hatch', 'laid', 'last', 'born', 'dart', 'hatchedNone', 'gift', 'gave',
 ].map((k) => 'd.' + k).concat(FOOD_KEYS.map((f) => 'food.' + f));
 
 const pick = (list, seed, day, salt) => list[Math.floor(rnd(seed, day, salt) * list.length)];
@@ -62,6 +62,7 @@ export function entryFor(life, rec, lang = 'sv') {
     eggs: String(rec.eggs || 0),
     hatched: String(rec.hatched || 0),
     kept: rec.kept || '',
+    gave: String(rec.gave || 0),
     mother: life.parents ? life.parents[0] : '',
     father: life.parents ? life.parents[1] : '',
     ...extra,
@@ -70,6 +71,9 @@ export function entryFor(life, rec, lang = 'sv') {
   // Day zero is the hatching. A snail born in this box opens its diary with
   // whose it is, because that is the first thing to say about it.
   if (day === 0) {
+    // Three ways to begin: born here, sent here as an egg by somebody else, or
+    // laid by the keeper with nobody to take after.
+    if (life.gift) return { day, lines: [{ key: 'd.gift', params: P() }] };
     return life.parents
       ? { day, lines: [{ key: 'd.born', params: P() }] }
       : { day, lines: [{ key: 'd.laid', params: P() }, { key: 'd.hatch', params: P() }] };
@@ -86,6 +90,7 @@ export function entryFor(life, rec, lang = 'sv') {
     notable.push({ key: 'd.dart', params: P() });
   }
   if (rec.eggs) notable.push({ key: 'd.' + pick(EGGS, seed, day, 41), params: P() });
+  if (rec.gave) notable.push({ key: 'd.gave', params: P() });
   if (rec.hatched) {
     notable.push(rec.kept
       ? { key: 'd.' + pick(HATCHED, seed, day, 43), params: P() }

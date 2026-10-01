@@ -102,6 +102,7 @@
       <ul id="prev-list" class="plain"></ul>
     </div>
     <p class="hint"><button id="start-backup" class="linkish" data-i18n="backup.fromStart">Har du en säkerhetskopia? Läs in den.</button></p>
+    <p class="hint"><button id="start-eggs" class="linkish" data-i18n="eggs.fromStart">Har du fått ett ägg av någon? Ta emot det.</button></p>
     <footer>
       <span data-i18n="app.by"></span>
       · <a href="https://snails.se/" data-i18n="app.hub">Fler snigelspel på snails.se</a>
@@ -229,6 +230,7 @@
       <button id="m-help" class="btn secondary" data-i18n="menu.help">Så funkar det</button>
       <button id="m-notify" class="btn secondary" data-i18n="menu.notify">Påminn mig</button>
       <button id="m-backup" class="btn secondary" data-i18n="menu.backup">Säkerhetskopia</button>
+      <button id="m-eggs" class="btn secondary" data-i18n="menu.eggs">Byt ägg</button>
       <button id="m-install" class="btn secondary" hidden data-i18n="menu.install">Installera app</button>
       <button id="m-reset" class="btn secondary danger" data-i18n="menu.reset">Börja om med nytt ägg</button>
     </div>
@@ -253,6 +255,37 @@
     <p data-i18n="help.4"></p>
     <p data-i18n="help.5"></p>
     <div class="actions"><button id="help-close" class="btn primary" data-i18n="help.close">Stäng</button></div>
+  </div>
+</div>
+
+<!-- eggs between terrariums -->
+<div id="eggs" class="overlay" hidden>
+  <div class="panel">
+    <h2 data-i18n="eggs.title">Byt ägg</h2>
+    <p class="why" data-i18n="eggs.text"></p>
+
+    <div id="eggs-give-wrap">
+      <p id="eggs-left" class="hint"></p>
+      <div class="actions">
+        <button id="eggs-give" class="btn primary" data-i18n="eggs.give">Ta ett ägg ur kullen</button>
+      </div>
+      <label class="field" id="eggs-code-wrap" hidden>
+        <span data-i18n="eggs.codeLabel">Skicka koden till den som ska ha ägget</span>
+        <textarea id="eggs-code" rows="3" readonly spellcheck="false"></textarea>
+      </label>
+      <div class="actions" id="eggs-copy-wrap" hidden>
+        <button id="eggs-copy" class="btn secondary" data-i18n="eggs.copy">Kopiera koden</button>
+      </div>
+    </div>
+
+    <label class="field">
+      <span data-i18n="eggs.inLabel">Har du fått en kod? Klistra in den här</span>
+      <textarea id="eggs-in" rows="3" autocomplete="off" spellcheck="false"></textarea>
+    </label>
+    <div class="actions">
+      <button id="eggs-take" class="btn secondary" data-i18n="eggs.take">Ta emot ägget</button>
+      <button id="eggs-close" class="btn secondary" data-i18n="eggs.close">Stäng</button>
+    </div>
   </div>
 </div>
 

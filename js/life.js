@@ -532,7 +532,8 @@ export class Box {
     this.cleans = 0;
     this.chalks = 0;
     this.snails = [];
-    this.clutches = [];             // eggs buried in the soil, waiting
+    this.clutches = [];        // eggs buried in the soil, waiting
+    this.eggsGiven = 0;        // eggs handed to somebody else, for the shelf
     // Every name this terrarium has used, the departed included, so a line of
     // heirs keeps counting up. Scoped to the box on purpose: start a new
     // terrarium and you may call a snail Majken again.
@@ -545,12 +546,15 @@ export class Box {
   get room() { return SNAIL_MAX - this.snails.length; }
   hasRoom() { return this.room > 0; }
   add({ name = '', seed = (Date.now() | 0), now = Date.now(), color = null, pattern = null,
-    parents = null, parentSeeds = null, quiet = false } = {}) {
+    parents = null, parentSeeds = null, gift = false, quiet = false } = {}) {
     if (!this.hasRoom()) return null;
     const s = new Life({
       seed, name, laidAt: now, color, pattern, parents, parentSeeds,
       bornTick: Math.max(0, Math.ceil((now - this.born) / TICK_MS)),
     });
+    // Born of parents, but not of parents who live here. The shelf cares about
+    // the difference, and so does the diary's first line.
+    s.gift = !!gift;
     s.box = this;
     this.snails.push(s);
     this.claimName(name);
@@ -698,6 +702,49 @@ export class Box {
     });
     this.noteHatch(c, 1, child.name);
     this.events.push({ type: 'hatchling', snail: child, count: c.count, parents: c.parents });
+  }
+
+  // ---------- eggs that leave, and eggs that arrive ----------
+  // Take one egg out of a clutch lying in the soil, to give to somebody else.
+  // It costs nothing: all but one of these were going out into the garden when
+  // the clutch came up. Each egg gets a seed of its own, or a keeper who gave
+  // away five would have given away the same snail five times.
+  giveEgg(now = Date.now()) {
+    this.advanceTo(now);
+    const c = this.clutches.find((x) => (x.given || 0) < x.count);
+    if (!c) return null;
+    c.given = (c.given || 0) + 1;
+    this.eggsGiven = (this.eggsGiven || 0) + 1;
+    const layer = this.snails.find((s) => s.seed === (c.parentSeeds ? c.parentSeeds[0] : null));
+    if (layer && !layer.dead) layer.today.gave = (layer.today.gave || 0) + 1;
+    return {
+      seed: (c.seed ^ Math.imul(c.given, 2246822519)) | 0,
+      color: c.look.color.slice(),
+      pattern: c.look.pattern.slice(),
+      parents: c.parents.slice(),
+      parentSeeds: c.parentSeeds.slice(),
+    };
+  }
+  // Somebody else's egg, put in this soil. It lies there for the same ninety
+  // seconds as the first egg of all — the arrival is the point, and a snail
+  // that turned up fully grown would be a different game.
+  receiveEgg(gift, now = Date.now()) {
+    if (!this.hasRoom()) return null;
+    this.advanceTo(now);
+    const i = Math.max(0, Math.ceil((now - this.born) / TICK_MS));
+    return this.add({
+      // named against this box's own memory, so an arriving Majken becomes
+      // Majken II here if there is already a Majken on the shelf
+      name: heirName(gift.parents, gift.seed, this.usedNames) || '',
+      seed: gift.seed,
+      now,
+      color: gift.color[rnd(gift.seed, i, 81) < 0.5 ? 0 : 1],
+      pattern: gift.pattern[rnd(gift.seed, i, 83) < 0.5 ? 0 : 1],
+      parents: gift.parents.slice(),
+      parentSeeds: gift.parentSeeds.slice(),
+      gift: true,
+      quiet: true,
+    });
   }
 
   // The day a clutch comes up belongs in the diary of the snail that buried it.
@@ -862,19 +909,23 @@ export const BADGES = [
   { id: 'full', won: (b) => b.snails.length >= SNAIL_MAX },
   { id: 'mated', won: (b) => b.any((s) => s.matings > 0) },
   { id: 'clutch', won: (b) => b.any((s) => s.clutches > 0) },
-  { id: 'born', won: (b) => b.any((s) => !!s.parents) },
+  // of your own breeding: an egg somebody sent is a different thing, and has
+  // its own badge below
+  { id: 'born', won: (b) => b.any((s) => !!s.parents && !s.gift) },
+  { id: 'gave', won: (b) => (b.eggsGiven || 0) >= 1 },
+  { id: 'gifted', won: (b) => b.any((s) => !!s.gift) },
 ];
 
 const SAVED_SNAIL = ['seed', 'name', 'laidAt', 'bornTick', 'tick', 'size', 'distance', 'asleep',
   'sealedTicks', 'awakeTicks', 'activeTicks', 'pets', 'petAt', 'wokeAt', 'adult', 'dead', 'diedAt',
   'days', 'today', 'color', 'pattern', 'parents', 'parentSeeds', 'matedTick', 'gravidTick', 'mate',
-  'matings', 'clutches'];
+  'matings', 'clutches', 'gift'];
 
 const SAVED_BOX = ['v', 'born', 'tz', 'tick', 'moisture', 'food', 'calcium', 'grime',
-  'meals', 'served', 'mists', 'cleans', 'chalks', 'badges', 'clutches', 'usedNames'];
+  'meals', 'served', 'mists', 'cleans', 'chalks', 'badges', 'clutches', 'usedNames', 'eggsGiven'];
 
 function dayRecord(d) {
-  return { d, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, grew: false, ate: null, asleep: false,
+  return { d, dist: 0, sleep: 0, active: 0, meals: 0, pets: 0, gave: 0, grew: false, ate: null, asleep: false,
     size: SIZE_HATCH, moisture: 1, grime: 0, mated: null, eggs: 0, hatched: 0, kept: '', disco: false };
 }
 

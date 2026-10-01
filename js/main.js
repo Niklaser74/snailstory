@@ -8,6 +8,7 @@ import * as fmt from './fmt.js';
 import { t, setLang, getLang, detectLang, NAMES } from './i18n.js';
 import { push } from './push.js';
 import * as backup from './backup.js';
+import * as egg from './egg.js';
 import { setMuted, isMuted, unlockAudio, sfx } from './game/audio.js';
 import { APP_VERSION } from './config.js';
 
@@ -522,7 +523,7 @@ function startOver({ keepPrevious = false } = {}) {
   welcomes.length = 0;
   if (view) view.watch(null);
   $('zoom-out').hidden = true;
-  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome', 'backup', 'restore']) $(id).hidden = true;
+  for (const id of ['death', 'menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome', 'backup', 'restore', 'eggs']) $(id).hidden = true;
   $('name-input').value = '';
   showStart();
 }
@@ -557,9 +558,87 @@ document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('clic
 }));
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  for (const id of ['help', 'restore', 'backup', 'reset', 'feed', 'add', 'welcome', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
+  for (const id of ['help', 'restore', 'backup', 'eggs', 'reset', 'feed', 'add', 'welcome', 'diary', 'badges', 'stats', 'away', 'egg', 'menu']) {
     if (!$(id).hidden) { $(id).hidden = true; return; }
   }
+});
+
+// ---------- eggs between terrariums ----------
+// All but one of a clutch were going out into the garden. Giving some of them
+// away instead costs the keeper nothing and gives somebody else a snail with
+// this box's family in it — and because the eggs are free there is nothing to
+// guard, so this needs no account and no network.
+function openEggs({ fromStart = false } = {}) {
+  const left = eggsLeft();
+  $('eggs-give-wrap').hidden = fromStart || !box;
+  $('eggs-left').textContent = left ? t('eggs.left', { n: String(left) }) : t('eggs.none');
+  $('eggs-give').disabled = !left;
+  $('eggs-code-wrap').hidden = true;
+  $('eggs-copy-wrap').hidden = true;
+  $('eggs-code').value = '';
+  $('eggs-in').value = '';
+  $('eggs').hidden = false;
+}
+function eggsLeft() {
+  if (!box) return 0;
+  return box.clutches.reduce((a, c) => a + Math.max(0, c.count - (c.given || 0)), 0);
+}
+$('m-eggs').addEventListener('click', () => openEggs());
+$('start-eggs').addEventListener('click', () => openEggs({ fromStart: true }));
+$('eggs-close').addEventListener('click', () => { $('eggs').hidden = true; });
+
+$('eggs-give').addEventListener('click', () => {
+  if (!box) return;
+  const gift = box.giveEgg(Date.now());
+  if (!gift) { $('eggs-give').disabled = true; return; }
+  $('eggs-code').value = egg.encode(gift);
+  $('eggs-code-wrap').hidden = false;
+  $('eggs-copy-wrap').hidden = false;
+  $('eggs-left').textContent = t('eggs.left', { n: String(eggsLeft()) });
+  $('eggs-give').disabled = !eggsLeft();
+  handleEvents();
+  refreshAll();
+  save();
+  toast(t('eggs.gave'));
+});
+$('eggs-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('eggs-code').value);
+    toast(t('eggs.copied'));
+  } catch {
+    $('eggs-code').select();
+    toast(t('eggs.copyFailed'));
+  }
+});
+
+$('eggs-take').addEventListener('click', () => {
+  let gift;
+  try {
+    gift = egg.decode($('eggs-in').value);
+  } catch (e) {
+    toast(t(`eggs.err.${e && e.code ? e.code : 'broken'}`));
+    return;
+  }
+  const now = Date.now();
+  // An egg can be somebody's first snail — that is how a friend starts playing —
+  // so there may be no terrarium yet to put it in.
+  if (!box) box = new Box({ born: now });
+  if (!box.hasRoom()) { toast(t('eggs.full')); return; }
+  const child = box.receiveEgg(gift, now);
+  if (!child) { toast(t('eggs.full')); return; }
+  sel = child;
+  box.checkBadges(now);
+  box.takeEvents();                 // the badge toasts would bury the egg panel
+  $('eggs').hidden = true;
+  $('menu').hidden = true;
+  begin();
+  $('egg-name').textContent = child.name;
+  $('egg').hidden = false;          // the same ninety-second wait as the first egg
+  sfx.crate();
+  refreshAll();
+  save();
+  syncReminders(200);
+  toast(t('eggs.took'));
 });
 
 // ---------- the copy you keep yourself ----------
@@ -693,7 +772,7 @@ $('restore-yes').addEventListener('click', () => {
   welcomes.length = 0;
   if (view) view.watch(null);
   $('zoom-out').hidden = true;
-  for (const id of ['menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome', 'death']) $(id).hidden = true;
+  for (const id of ['menu', 'away', 'diary', 'badges', 'stats', 'egg', 'add', 'welcome', 'death', 'eggs']) $(id).hidden = true;
   load();
   toast(t('restore.done'));
 });
