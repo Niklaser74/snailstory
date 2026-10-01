@@ -6,9 +6,11 @@ import { entryFor, diaryFor } from './diary.js';
 import { View } from './view.js';
 import * as fmt from './fmt.js';
 import { t, setLang, getLang, detectLang, NAMES } from './i18n.js';
-import { push } from './push.js';
+import { push, deviceId } from './push.js';
 import * as backup from './backup.js';
 import * as egg from './egg.js';
+import { cloud } from './cloud.js';
+import { online } from './supa.js';
 import { setMuted, isMuted, unlockAudio, sfx } from './game/audio.js';
 import { APP_VERSION } from './config.js';
 
@@ -49,6 +51,8 @@ function load() {
   save();
   if (legacy) store.del('life');             // it lives in the box now
   startReminders();
+  cloudOn = !!store.get('cloudOn', false);
+  cloudTick();                               // a device that has been away a day uploads now
 }
 
 // Reminders survive reloads on their own, but the subscription can be dropped by
@@ -654,6 +658,7 @@ function refreshBackupWhen() {
 }
 $('m-backup').addEventListener('click', () => {
   refreshBackupWhen();
+  refreshCloud();
   $('backup-save').disabled = !box;
   $('backup-copy').disabled = !box;
   $('backup-text').value = '';
@@ -665,6 +670,7 @@ $('backup-close').addEventListener('click', () => { $('backup').hidden = true; }
 // copy would otherwise have no way in at all — which is the whole point of this.
 $('start-backup').addEventListener('click', () => {
   refreshBackupWhen();
+  refreshCloud();
   $('backup-save').disabled = true;
   $('backup-copy').disabled = true;
   $('backup-text').value = '';
@@ -711,6 +717,99 @@ $('backup-copy').addEventListener('click', async () => {
     toast(t('backup.copyFailed'));
   }
 });
+
+// ---------- the copy the account keeps ----------
+// The one thing a file on this device cannot survive is the device. Nobody
+// keeps a phone for three years, and the game promises three years. So the box
+// can also leave a copy on the account — a copy, never a sync: it is uploaded
+// about once a day and only ever comes back when somebody asks for it, through
+// the same question as a file.
+//
+// The honest limit is said out loud in the panel: an anonymous account lives in
+// this browser too, so for a player who has not linked it to Google or e-mail
+// the copy dies with the device, exactly like the box. Saying that is the
+// difference between a safety net and a comforting noise.
+let cloudOn = false;
+async function refreshCloud() {
+  const on = !!store.get('cloudOn', false);
+  cloudOn = on;
+  $('cloud-on').hidden = on;
+  $('cloud-off').hidden = !on;
+  $('cloud-state').textContent = on
+    ? t('cloud.when', { ago: fmt.span(Math.max(60000, Date.now() - (store.get('cloudAt', 0) || Date.now())), getLang()) })
+    : t('cloud.never');
+  $('cloud-get').hidden = true;
+  $('cloud-account').textContent = '';
+  if (!online.signedIn()) { if (!on) $('cloud-state').textContent = t('cloud.never'); return; }
+  try {
+    const [who, saves] = await Promise.all([online.user().catch(() => null), cloud.list().catch(() => [])]);
+    if (who && who.anonymous) $('cloud-account').innerHTML = t('cloud.anon');
+    else if (who) $('cloud-account').textContent = t('cloud.linked', { who: who.email || who.provider || '' });
+    const other = saves.filter((s2) => s2.save !== null);
+    if (other.length) {
+      $('cloud-get').hidden = false;
+      const newest = other[0];
+      $('cloud-state').textContent = t(on ? 'cloud.when' : 'cloud.found', {
+        ago: fmt.span(Math.max(60000, Date.now() - Date.parse(newest.savedAt)), getLang()),
+        names: newest.label || t('start.placeholder'),
+        days: String(newest.days || 0),
+      });
+    }
+  } catch { /* the panel works without any of this */ }
+}
+$('cloud-on').addEventListener('click', async () => {
+  if (!box) return;
+  $('cloud-on').disabled = true;
+  try {
+    // Only on a real answer. The upload is best effort like everything else that
+    // touches the network, and best effort plus a cheerful toast is how a player
+    // ends up trusting a copy that was never made.
+    const stamp = await cloud.enable(box, {
+      device: deviceId(), previous: store.get('previous', []), appVersion: APP_VERSION,
+    });
+    if (!stamp) throw new Error('nothing stored');
+    store.set('cloudOn', true);
+    store.set('cloudAt', Date.now());
+    toast(t('cloud.saved'));
+  } catch {
+    toast(t('cloud.failed'));
+  }
+  $('cloud-on').disabled = false;
+  await refreshCloud();
+});
+$('cloud-off').addEventListener('click', async () => {
+  $('cloud-off').disabled = true;
+  await cloud.disable(deviceId());
+  store.set('cloudOn', false);
+  store.del('cloudAt');
+  $('cloud-off').disabled = false;
+  toast(t('cloud.removed'));
+  await refreshCloud();
+});
+// Fetching is the same question as reading a file back, because it is the same
+// thing: a copy taken at some moment, about to replace what is here now.
+$('cloud-get').addEventListener('click', async () => {
+  $('cloud-get').disabled = true;
+  try {
+    const row = await cloud.get(null);
+    if (!row) { toast(t('cloud.none')); return; }
+    offerRestore(row.save);
+  } catch {
+    toast(t('cloud.failed'));
+  } finally {
+    $('cloud-get').disabled = false;
+  }
+});
+// Once a day, while the app is open. Never on the way out: a save is hundreds of
+// kilobytes and an upload started at pagehide is cut off, so it would be a
+// request that looks like a backup and is not one.
+function cloudTick() {
+  if (!cloudOn || !box || !box.snails.length) return;
+  cloud.put(box, {
+    device: deviceId(), previous: store.get('previous', []), appVersion: APP_VERSION,
+    since: store.get('cloudAt', 0),
+  }).then((stamp) => { if (stamp) store.set('cloudAt', Date.now()); }).catch(() => {});
+}
 
 // ---------- reading a copy back ----------
 $('backup-load').addEventListener('click', () => { $('backup-file').value = ''; $('backup-file').click(); });
@@ -854,7 +953,7 @@ function frame() {
     // the portraits are redrawn on refresh, so they need a faster beat while
     // anyone has their eyes pulled in — otherwise the row contradicts the box
     else if (now - lastRefresh > (box.snails.some((s2) => s2.shy(now)) ? 120 : 1000)) refreshScreen(now);
-    if (now - lastSave > 30000) save();
+    if (now - lastSave > 30000) { save(); cloudTick(); }
   }
   requestAnimationFrame(frame);
 }

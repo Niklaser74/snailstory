@@ -112,6 +112,9 @@ button { font: inherit; }
 .panel h1 { margin: 6px 0 4px; font-size: 30px; line-height: 1.05; }
 .panel h2 { margin: 0 0 10px; font-size: 22px; }
 .panel h3 { margin: 16px 0 6px; font-size: 15px; }
+/* the line between the copy you hold and the copy the account holds: two
+   different promises, and the panel should not read as one list of buttons */
+.rule { margin: 20px 0 4px; border: 0; border-top: 1px solid var(--line); }
 .panel p { line-height: 1.5; }
 .tagline { margin: 0 0 16px; color: var(--muted); }
 .lang { position: absolute; top: 14px; right: 14px; display: flex; gap: 2px; background: var(--chip); border-radius: 999px; padding: 3px; }

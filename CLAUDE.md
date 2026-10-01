@@ -33,6 +33,7 @@ js/i18n.js      sv/en inklusive alla dagbokens meningar (nycklar 'd.*')
 js/push.js      påminnelser: prenumerera och lämna snigelns schema hos servern
 js/backup.js    säkerhetskopian: packa, läsa och vägra. Noll DOM
 js/egg.js       äggkoden mellan två terrarier: koda, avkoda och vägra. Noll DOM
+js/cloud.js     kopian på kontot: ladda upp, lista, hämta. Best effort, noll DOM
 js/supa.js      anonymt Supabase-konto och RPC, inget bibliotek
 js/game/        KOPIOR från snailmageddon — rör aldrig, kör sync:game
 test/           handrullade tester utan ramverk, node:assert
@@ -135,6 +136,23 @@ docs/store/     butikstext och pressbilder — se dess README
 - **Mottagaren lottar vilken förälder ungen brås på**, inte givaren. Koden bär båda
   färgerna och båda mönstren; `receiveEgg` drar med samma regel som en kull som kläcks
   hemma. Givaren ska inte kunna se vad hen skickade.
+- **Kopian på kontot är en kopia, aldrig en synk.** Lådan laddas upp ungefär en gång om
+  dygnet och skrivs *aldrig* tillbaka av sig själv: den hämtas med ett tryck och samma
+  fråga som en fil. Två lådor på ett konto får var sin rad (`device` i primärnyckeln) och
+  kan därför inte skriva över varandra. Automatisk spegling vore samma kapplöpning som
+  påminnelsekalendern hade i september, fast med ett helt terrarium som insats.
+- **Ladda aldrig upp vid `pagehide`.** En sparfil är hundratals kilobyte; `keepalive`
+  tillåter 64 kB och utan den hinner anropet inte klart. En uppladdning som ser ut att
+  ske men avbryts är värre än ingen alls. Uppladdningen sker medan appen är öppen.
+- **Ett lyckat anrop, inte ett försök, får flippa reglaget.** `cloud.enable` returnerar
+  tidsstämpeln servern lagrade, och knappen tror på svaret. Allt mot nätet är best effort,
+  och best effort plus en glad toast är hur en spelare slutar oroa sig för en kopia som
+  aldrig gjordes.
+- **Den automatiska uppladdningen skapar aldrig ett konto.** Bara keeparens eget tryck
+  gör det (`force`). Ett dygnsjobb är inget skäl att registrera någon för något.
+- **Rutan säger att ett anonymt konto inte överlever enheten.** Kontot bor självt i
+  `localStorage`; utan Google eller e-post dör kopian med telefonen. Att dölja det hade
+  gjort funktionen till en lugnande ljudeffekt.
 - **Notiser levereras per konto, inte per enhet** — datorsnigeln hörs av på telefonen, och
   det är avsiktligt.
 - **Ta aldrig bort en RPC-signatur i samma steg som klienten byter till en ny.** Spelet är

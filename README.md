@@ -49,6 +49,7 @@ js/fmt.js       millimeter, dygn och år som en snigelskötare säger dem
 js/i18n.js      sv/en, inklusive alla dagbokens meningar
 js/backup.js    säkerhetskopian: packa, läsa och vägra
 js/egg.js       äggkoden mellan två terrarier
+js/cloud.js     kopian av lådan på kontot
 js/push.js      påminnelser: prenumerera, och lämna snigelns schema hos servern
 js/supa.js      minimal Supabase-klient: anonymt konto och RPC, inget bibliotek
 js/main.js      laddning, knappar, paneler, notiser, PWA

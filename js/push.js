@@ -24,7 +24,7 @@ const snailKey = (s) => ((s.seed >>> 0).toString(36));
 // It identifies a browser, nothing else: no name, no fingerprint, and it never
 // leaves the reminder rows.
 const DEVICE_KEY = 'snailstory.device';
-function deviceId() {
+export function deviceId() {
   try {
     let id = localStorage.getItem(DEVICE_KEY);
     if (!id) {

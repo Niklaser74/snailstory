@@ -302,6 +302,17 @@
       <button id="backup-close" class="btn secondary" data-i18n="backup.close">Stäng</button>
     </div>
     <input id="backup-file" type="file" accept="application/json,.json" hidden>
+
+    <hr class="rule">
+    <h3 data-i18n="cloud.title">Kopia på kontot</h3>
+    <p class="why" data-i18n="cloud.text"></p>
+    <p id="cloud-state" class="hint"></p>
+    <p id="cloud-account" class="hint"></p>
+    <div class="actions">
+      <button id="cloud-on" class="btn secondary" data-i18n="cloud.on">Spara en kopia på kontot</button>
+      <button id="cloud-get" class="btn secondary" hidden data-i18n="cloud.get">Hämta kopian hit</button>
+      <button id="cloud-off" class="btn secondary" hidden data-i18n="cloud.off">Sluta spara på kontot</button>
+    </div>
     <details id="backup-paste">
       <summary data-i18n="backup.pasteOpen">Klistra in texten i stället</summary>
       <label class="field">

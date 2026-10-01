@@ -61,6 +61,23 @@ och när sidan göms eller stängs (`keepalive`).
 sitt eget scope, och en Snail Story-notis får aldrig hamna hos Snäckmageddons
 `sw.js`. Därför `snailstory_push_subscriptions`.
 
+## Kopian av lådan
+
+Migrationen `20261001100000_snailstory_saves.sql` lägger till
+`snailstory_saves` och fyra RPC:er: `put_save`, `list_saves`, `get_save`,
+`drop_save`. En rad per konto **och enhet**, av samma skäl som påminnelserna
+bär ett enhetshandtag: telefonen och datorn är två olika terrarier och ska
+inte skriva över varandras kopia.
+
+Raden är sparfilen ordagrant som text. En treårig låda med tre sniglar är
+ungefär 400 kB, och Postgres TOAST-komprimerar den — 47 kB sparfil blev en
+tabell på 64 kB med index inräknat. Taket i check-villkoret är 4 MB.
+
+Det här är en **kopia, inte en synk**. Servern skriver aldrig tillbaka av sig
+själv; klienten laddar upp ungefär en gång om dygnet, och spelaren hämtar med
+ett tryck. Lägger du till ett fält i sparfilen behöver ingenting göras här —
+raden är hela `box.toJSON()` och servern vet inte vad en snigel är.
+
 ## Sätta upp från noll
 
 1. **Migration.** `supabase/migrations/20260912190000_snailstory_reminders.sql`
